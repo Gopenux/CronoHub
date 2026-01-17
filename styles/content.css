@@ -1,0 +1,532 @@
+/*
+ * CronoHub - GitHub Time Tracker
+ * Floating panel styles
+ * Author: Gopenux AI
+ * Copyright (c) 2026 Gopenux AI
+ */
+
+/* Variables consistent with GitHub */
+:root {
+  --gtt-bg-primary: #0d1117;
+  --gtt-bg-secondary: #161b22;
+  --gtt-bg-tertiary: #21262d;
+  --gtt-border: #30363d;
+  --gtt-text-primary: #f0f6fc;
+  --gtt-text-secondary: #8b949e;
+  --gtt-text-muted: #6e7681;
+  --gtt-accent-green: #238636;
+  --gtt-accent-green-hover: #2ea043;
+  --gtt-accent-blue: #58a6ff;
+  --gtt-accent-orange: #d29922;
+  --gtt-accent-red: #f85149;
+  --gtt-radius: 12px;
+  --gtt-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+/* Floating activation button */
+#gtt-toggle-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gtt-accent-green) 0%, #1a7f37 100%);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(35, 134, 54, 0.4);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 200ms ease;
+}
+
+#gtt-toggle-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 24px rgba(35, 134, 54, 0.5);
+}
+
+#gtt-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+#gtt-toggle-btn svg {
+  width: 26px;
+  height: 26px;
+  color: white;
+}
+
+/* Main panel */
+#gtt-panel {
+  position: fixed;
+  bottom: 96px;
+  right: 24px;
+  width: 360px;
+  background: var(--gtt-bg-secondary);
+  border: 1px solid var(--gtt-border);
+  border-radius: var(--gtt-radius);
+  box-shadow: var(--gtt-shadow);
+  z-index: 9998;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+  overflow: hidden;
+  animation: gtt-slideIn 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#gtt-panel.hidden {
+  display: none;
+}
+
+@keyframes gtt-slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Panel header */
+.gtt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  background: var(--gtt-bg-primary);
+  border-bottom: 1px solid var(--gtt-border);
+}
+
+.gtt-header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gtt-header-title svg {
+  width: 20px;
+  height: 20px;
+  color: var(--gtt-accent-green);
+}
+
+.gtt-header-title h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gtt-text-primary);
+  margin: 0;
+}
+
+.gtt-close-btn {
+  background: transparent;
+  border: none;
+  padding: 6px;
+  cursor: pointer;
+  border-radius: 6px;
+  color: var(--gtt-text-muted);
+  transition: all 150ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gtt-close-btn:hover {
+  background: var(--gtt-bg-tertiary);
+  color: var(--gtt-text-primary);
+}
+
+.gtt-close-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Panel body */
+.gtt-body {
+  padding: 18px;
+}
+
+/* Issue info */
+.gtt-issue-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  background: var(--gtt-bg-tertiary);
+  border-radius: 8px;
+  margin-bottom: 14px;
+}
+
+/* User info */
+.gtt-user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(35, 134, 54, 0.1);
+  border: 1px solid rgba(35, 134, 54, 0.3);
+  border-radius: 8px;
+  margin-bottom: 18px;
+}
+
+.gtt-user-label {
+  font-size: 12px;
+  color: var(--gtt-text-secondary);
+}
+
+.gtt-user-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gtt-accent-green);
+}
+
+.gtt-issue-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(35, 134, 54, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.gtt-issue-icon svg {
+  width: 16px;
+  height: 16px;
+  color: var(--gtt-accent-green);
+}
+
+.gtt-issue-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.gtt-issue-number {
+  font-size: 12px;
+  color: var(--gtt-text-muted);
+  margin-bottom: 2px;
+}
+
+.gtt-issue-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gtt-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Form */
+.gtt-form-group {
+  margin-bottom: 16px;
+}
+
+.gtt-form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gtt-text-secondary);
+  margin-bottom: 8px;
+}
+
+.gtt-input-wrapper {
+  position: relative;
+}
+
+.gtt-input {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--gtt-text-primary);
+  background: var(--gtt-bg-primary);
+  border: 1px solid var(--gtt-border);
+  border-radius: 8px;
+  outline: none;
+  transition: all 150ms ease;
+}
+
+.gtt-input:focus {
+  border-color: var(--gtt-accent-blue);
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+}
+
+.gtt-input::placeholder {
+  color: var(--gtt-text-muted);
+}
+
+/* Hours input with suffix */
+.gtt-hours-input {
+  padding-right: 60px;
+}
+
+/* Hide native number input spinners */
+.gtt-input[type="number"]::-webkit-outer-spin-button,
+.gtt-input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.gtt-input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.gtt-input-suffix {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: var(--gtt-text-muted);
+  pointer-events: none;
+}
+
+/* Textarea */
+.gtt-textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: var(--gtt-text-primary);
+  background: var(--gtt-bg-primary);
+  border: 1px solid var(--gtt-border);
+  border-radius: 8px;
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  transition: all 150ms ease;
+}
+
+.gtt-textarea:focus {
+  border-color: var(--gtt-accent-blue);
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+}
+
+.gtt-textarea::placeholder {
+  color: var(--gtt-text-muted);
+}
+
+/* Styles for contenteditable (projects view) */
+.gtt-contenteditable {
+  min-height: 20px;
+  outline: none;
+  cursor: text;
+}
+
+.gtt-contenteditable:empty:before {
+  content: attr(data-placeholder);
+  color: var(--gtt-text-muted);
+  pointer-events: none;
+}
+
+.gtt-contenteditable:focus {
+  border-color: var(--gtt-accent-blue);
+  box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+}
+
+.gtt-textarea.gtt-contenteditable {
+  min-height: 60px;
+  white-space: pre-wrap;
+}
+
+/* Date selector */
+.gtt-date-input {
+  color-scheme: dark;
+}
+
+/* Submit button */
+.gtt-submit-btn {
+  width: 100%;
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, var(--gtt-accent-green) 0%, #1a7f37 100%);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 150ms ease;
+  margin-top: 8px;
+}
+
+.gtt-submit-btn:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(35, 134, 54, 0.3);
+  transform: translateY(-1px);
+}
+
+.gtt-submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.gtt-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gtt-submit-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Loading spinner */
+.gtt-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: gtt-spin 600ms linear infinite;
+}
+
+@keyframes gtt-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error state */
+.gtt-error-state {
+  padding: 24px 18px;
+  text-align: center;
+}
+
+.gtt-error-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: rgba(248, 81, 73, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gtt-error-icon svg {
+  width: 24px;
+  height: 24px;
+  color: var(--gtt-accent-red);
+}
+
+.gtt-error-text {
+  font-size: 14px;
+  color: var(--gtt-text-secondary);
+  margin-bottom: 16px;
+}
+
+.gtt-instructions {
+  text-align: left;
+  padding-left: 20px;
+  margin: 0;
+}
+
+.gtt-instructions li {
+  font-size: 13px;
+  color: var(--gtt-text-secondary);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.gtt-instructions li:last-child {
+  margin-bottom: 0;
+}
+
+.gtt-instructions strong {
+  color: var(--gtt-accent-green);
+}
+
+.gtt-config-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--gtt-accent-blue);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.gtt-config-link:hover {
+  text-decoration: underline;
+}
+
+/* Notification toast */
+.gtt-toast {
+  position: fixed;
+  bottom: 96px;
+  right: 24px;
+  width: 360px;
+  padding: 14px 18px;
+  background: var(--gtt-bg-secondary);
+  border: 1px solid var(--gtt-border);
+  border-radius: 10px;
+  box-shadow: var(--gtt-shadow);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: gtt-toastIn 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.gtt-toast.success {
+  border-color: var(--gtt-accent-green);
+}
+
+.gtt-toast.error {
+  border-color: var(--gtt-accent-red);
+}
+
+.gtt-toast-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.gtt-toast.success .gtt-toast-icon {
+  color: var(--gtt-accent-green);
+}
+
+.gtt-toast.error .gtt-toast-icon {
+  color: var(--gtt-accent-red);
+}
+
+.gtt-toast-message {
+  flex: 1;
+  font-size: 14px;
+  color: var(--gtt-text-primary);
+}
+
+@keyframes gtt-toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gtt-toastOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+/* Responsive */
+@media (max-width: 420px) {
+  #gtt-panel {
+    width: calc(100vw - 48px);
+    right: 24px;
+  }
+  
+  .gtt-toast {
+    width: calc(100vw - 48px);
+  }
+}

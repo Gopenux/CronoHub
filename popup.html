@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<!--
+  CronoHub - GitHub Time Tracker Extension
+  Author: Gopenux AI
+  Copyright (c) 2026 Gopenux AI
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CronoHub</title>
+  <link rel="stylesheet" href="styles/popup.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12,6 12,12 16,14"/>
+        </svg>
+        <h1>CronoHub</h1>
+      </div>
+      <span class="badge">GitHub</span>
+    </header>
+
+    <main class="main">
+      <!-- Connection status -->
+      <div id="connection-status" class="status-card">
+        <div class="status-indicator disconnected"></div>
+        <span>Not authenticated</span>
+      </div>
+
+      <!-- Authentication form -->
+      <section id="auth-section" class="section">
+        <h2>Configuration</h2>
+        <div class="form-group">
+          <label for="github-token">GitHub Token</label>
+          <input
+            type="password"
+            id="github-token"
+            placeholder="ghp_xxxxxxxxxxxx"
+            autocomplete="off"
+          >
+          <p class="hint">
+            Generate a token at
+            <a href="https://github.com/settings/tokens" target="_blank">GitHub Settings</a>
+            with <code>repo</code> permissions
+          </p>
+        </div>
+        <button id="save-config" class="btn btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+            <polyline points="17 21 17 13 7 13 7 21"/>
+            <polyline points="7 3 7 8 15 8"/>
+          </svg>
+          Save configuration
+        </button>
+      </section>
+
+      <!-- Authenticated user -->
+      <section id="user-section" class="section hidden">
+        <div class="user-card">
+          <img id="user-avatar" src="" alt="Avatar" class="avatar">
+          <div class="user-info">
+            <span id="user-name" class="user-name"></span>
+            <span id="user-login" class="user-login"></span>
+          </div>
+          <button id="logout-btn" class="btn btn-ghost" title="Sign out">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- Instructions -->
+      <section class="section instructions">
+        <h2>How to use</h2>
+        <ol>
+          <li>Configure your GitHub token above</li>
+          <li>Navigate to any GitHub issue</li>
+          <li>Use the floating panel to log time</li>
+          <li>Time will be saved as a comment</li>
+        </ol>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>v1.0.0</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

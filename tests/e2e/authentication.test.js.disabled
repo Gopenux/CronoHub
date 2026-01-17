@@ -1,0 +1,269 @@
+// CronoHub - Authentication E2E Tests
+// Author: Gopenux AI
+// Copyright (c) 2026 Gopenux AI
+
+const {
+  launchBrowserWithExtension,
+  clearExtensionStorage,
+  getExtensionStorage,
+  takeScreenshot
+} = require('./helpers/extension-loader');
+
+describe('Authentication Flow E2E Tests', () => {
+  let browser;
+  let page;
+  let extensionId;
+
+  jest.setTimeout(60000);
+
+  beforeAll(async () => {
+    const launch = await launchBrowserWithExtension();
+    browser = launch.browser;
+    page = launch.page;
+    extensionId = launch.extensionId;
+  });
+
+  afterAll(async () => {
+    if (browser) {
+      await browser.close();
+    }
+  });
+
+  beforeEach(async () => {
+    // Limpiar storage antes de cada test
+    await clearExtensionStorage(page, extensionId);
+  });
+
+  test('debe mostrar popup sin autenticación inicialmente', async () => {
+    try {
+      // Abrir el popup de la extensión
+      const popupUrl = `chrome-extension://${extensionId}/popup.html`;
+      await page.goto(popupUrl, { waitUntil: 'networkidle0' });
+
+      // Verificar que muestra el estado de no autenticado
+      const statusText = await page.$eval('#connection-status', el => el.textContent);
+      expect(statusText).toContain('Not authenticated');
+
+      // Verificar que la sección de autenticación está visible
+      const authSectionVisible = await page.$eval('#auth-section',
+        el => !el.classList.contains('hidden')
+      );
+      expect(authSectionVisible).toBe(true);
+
+      // Verificar que la sección de usuario está oculta
+      const userSectionVisible = await page.$eval('#user-section',
+        el => !el.classList.contains('hidden')
+      );
+      expect(userSectionVisible).toBe(false);
+
+    } catch (error) {
+      await takeScreenshot(page, 'auth-initial-error');
+      throw error;
+    }
+  });
+
+  test('debe mostrar error con token vacío', async () => {
+    try {
+      const popupUrl = `chrome-extension://${extensionId}/popup.html`;
+      await page.goto(popupUrl, { waitUntil: 'networkidle0' });
+
+      // Intentar guardar sin token
+      await page.click('#save-config');
+
+      // Esperar a que aparezca el toast de error
+      await page.waitForSelector('.toast.error', { timeout: 3000 });
+
+      const toastText = await page.$eval('.toast.error', el => el.textContent);
+      expect(toastText).toContain('Please enter your GitHub token');
+
+    } catch (error) {
+      await takeScreenshot(page, 'auth-empty-token-error');
+      throw error;
+    }
+  });
+
+  test('debe guardar token en storage', async () => {
+    try {
+      const popupUrl = `chrome-extension://${extensionId}/popup.html`;
+      await page.goto(popupUrl, { waitUntil: 'networkidle0' });
+
+      const testToken = 'ghp_test_token_12345';
+
+      // Ingresar token
+      await page.type('#github-token', testToken);
+
+      // Mock de la API de GitHub para evitar llamada real
+      await page.evaluateOnNewDocument(() => {
+        window.fetch = async (url, options) => {
+          if (url === 'https://api.github.com/user') {
+            return {
+              ok: true,
+              json: async () => ({
+                login: 'testuser',
+                name: 'Test User',
+                avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4'
+              })
+            };
+          }
+          return { ok: false };
+        };
+      });
+
+      // Recargar la página para aplicar el mock
+      await page.reload({ waitUntil: 'networkidle0' });
+      await page.type('#github-token', testToken);
+
+      // Guardar configuración
+      await page.click('#save-config');
+
+      // Esperar a que se guarde
+      await page.waitForTimeout(1000);
+
+      // Verificar que se guardó en storage
+      const storage = await getExtensionStorage(page, extensionId);
+      expect(storage.githubToken).toBe(testToken);
+      expect(storage.userData).toBeDefined();
+      expect(storage.userData.login).toBe('testuser');
+
+    } catch (error) {
+      await takeScreenshot(page, 'auth-save-token-error');
+      throw error;
+    }
+  });
+
+  test('debe mostrar estado autenticado después de login', async () => {
+    try {
+      // Pre-configurar el storage con token válido
+      await page.evaluate(() => {
+        return new Promise((resolve) => {
+          chrome.storage.local.set({
+            githubToken: 'ghp_valid_token',
+            userData: {
+              login: 'testuser',
+              name: 'Test User',
+              avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4'
+            }
+          }, resolve);
+        });
+      });
+
+      // Abrir popup
+      const popupUrl = `chrome-extension://${extensionId}/popup.html`;
+      await page.goto(popupUrl, { waitUntil: 'networkidle0' });
+
+      // Esperar a que cargue el estado
+      await page.waitForTimeout(1000);
+
+      // Verificar que muestra estado conectado
+      const statusText = await page.$eval('#connection-status', el => el.textContent);
+      expect(statusText).toContain('Connected');
+      expect(statusText).toContain('Test User');
+
+      // Verificar que la sección de usuario está visible
+      const userSectionVisible = await page.$eval('#user-section',
+        el => !el.classList.contains('hidden')
+      );
+      expect(userSectionVisible).toBe(true);
+
+      // Verificar que la sección de autenticación está oculta
+      const authSectionVisible = await page.$eval('#auth-section',
+        el => !el.classList.contains('hidden')
+      );
+      expect(authSectionVisible).toBe(false);
+
+      // Verificar datos del usuario
+      const userName = await page.$eval('#user-name', el => el.textContent);
+      const userLogin = await page.$eval('#user-login', el => el.textContent);
+      expect(userName).toBe('Test User');
+      expect(userLogin).toBe('@testuser');
+
+    } catch (error) {
+      await takeScreenshot(page, 'auth-authenticated-state-error');
+      throw error;
+    }
+  });
+
+  test('debe hacer logout correctamente', async () => {
+    try {
+      // Pre-configurar el storage con token válido
+      await page.evaluate(() => {
+        return new Promise((resolve) => {
+          chrome.storage.local.set({
+            githubToken: 'ghp_valid_token',
+            userData: {
+              login: 'testuser',
+              name: 'Test User',
+              avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4'
+            }
+          }, resolve);
+        });
+      });
+
+      const popupUrl = `chrome-extension://${extensionId}/popup.html`;
+      await page.goto(popupUrl, { waitUntil: 'networkidle0' });
+      await page.waitForTimeout(1000);
+
+      // Hacer clic en logout
+      await page.click('#logout-btn');
+
+      // Esperar a que se limpie
+      await page.waitForTimeout(1000);
+
+      // Verificar que se limpió el storage
+      const storage = await getExtensionStorage(page, extensionId);
+      expect(storage.githubToken).toBeUndefined();
+      expect(storage.userData).toBeUndefined();
+
+      // Verificar que volvió al estado de no autenticado
+      const statusText = await page.$eval('#connection-status', el => el.textContent);
+      expect(statusText).toContain('Not authenticated');
+
+    } catch (error) {
+      await takeScreenshot(page, 'auth-logout-error');
+      throw error;
+    }
+  });
+
+  test('debe persistir autenticación entre recargas', async () => {
+    try {
+      // Configurar storage
+      await page.evaluate(() => {
+        return new Promise((resolve) => {
+          chrome.storage.local.set({
+            githubToken: 'ghp_persistent_token',
+            userData: {
+              login: 'testuser',
+              name: 'Test User',
+              avatar_url: 'https://avatars.githubusercontent.com/u/1?v=4'
+            }
+          }, resolve);
+        });
+      });
+
+      // Abrir popup
+      const popupUrl = `chrome-extension://${extensionId}/popup.html`;
+      await page.goto(popupUrl, { waitUntil: 'networkidle0' });
+      await page.waitForTimeout(1000);
+
+      // Verificar estado conectado
+      let statusText = await page.$eval('#connection-status', el => el.textContent);
+      expect(statusText).toContain('Connected');
+
+      // Recargar la página
+      await page.reload({ waitUntil: 'networkidle0' });
+      await page.waitForTimeout(1000);
+
+      // Verificar que sigue conectado
+      statusText = await page.$eval('#connection-status', el => el.textContent);
+      expect(statusText).toContain('Connected');
+
+      // Verificar que el storage no cambió
+      const storage = await getExtensionStorage(page, extensionId);
+      expect(storage.githubToken).toBe('ghp_persistent_token');
+
+    } catch (error) {
+      await takeScreenshot(page, 'auth-persistence-error');
+      throw error;
+    }
+  });
+});

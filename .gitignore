@@ -1,0 +1,35 @@
+CLAUDE.md
+
+# Node modules
+node_modules/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Test screenshots
+tests/screenshots/*.png
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+
+*.code-workspace

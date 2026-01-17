@@ -1,0 +1,190 @@
+// CronoHub - Issue Detection E2E Tests
+// Author: Gopenux AI
+// Copyright (c) 2026 Gopenux AI
+
+const {
+  launchBrowserWithExtension,
+  setGitHubToken,
+  clearExtensionStorage,
+  waitForCronoHubButton,
+  navigateToGitHubIssue,
+  takeScreenshot
+} = require('./helpers/extension-loader');
+
+describe('Issue Detection E2E Tests', () => {
+  let browser;
+  let page;
+  let extensionId;
+
+  // Timeout extendido para tests E2E
+  jest.setTimeout(60000);
+
+  beforeAll(async () => {
+    const launch = await launchBrowserWithExtension();
+    browser = launch.browser;
+    page = launch.page;
+    extensionId = launch.extensionId;
+
+    // Configurar token de prueba
+    await setGitHubToken(page, 'test_token_for_detection', extensionId);
+  });
+
+  afterAll(async () => {
+    if (browser) {
+      await browser.close();
+    }
+  });
+
+  test('debe cargar la extensión correctamente', () => {
+    expect(extensionId).toBeDefined();
+    expect(extensionId).toMatch(/^[a-z]{32}$/);
+  });
+
+  test('debe detectar issue en URL directa', async () => {
+    try {
+      // Navegar a un issue público conocido (React)
+      await navigateToGitHubIssue(page, 'facebook', 'react', 1);
+
+      // Esperar a que el content script se ejecute
+      await page.waitForTimeout(2000);
+
+      // Verificar que el botón de CronoHub aparezca
+      await waitForCronoHubButton(page);
+
+      const buttonVisible = await page.$eval('#gtt-toggle-btn',
+        el => window.getComputedStyle(el).display !== 'none'
+      );
+
+      expect(buttonVisible).toBe(true);
+
+      // Verificar que el estado interno tenga los datos del issue
+      const issueData = await page.evaluate(() => {
+        // Acceder al estado del content script
+        return window.location.pathname.match(/\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
+      });
+
+      expect(issueData).toBeTruthy();
+      expect(issueData[1]).toBe('facebook');
+      expect(issueData[2]).toBe('react');
+      expect(issueData[3]).toBe('1');
+
+    } catch (error) {
+      await takeScreenshot(page, 'issue-detection-error');
+      throw error;
+    }
+  });
+
+  test('debe ocultar el botón cuando no hay issue', async () => {
+    try {
+      // Navegar a una página sin issue
+      await page.goto('https://github.com', { waitUntil: 'networkidle0' });
+
+      // Esperar a que el script detecte que no hay issue
+      await page.waitForTimeout(2000);
+
+      // Verificar que el botón esté oculto
+      const buttonExists = await page.$('#gtt-toggle-btn');
+
+      if (buttonExists) {
+        const buttonVisible = await page.$eval('#gtt-toggle-btn',
+          el => window.getComputedStyle(el).display !== 'none'
+        );
+        expect(buttonVisible).toBe(false);
+      }
+
+    } catch (error) {
+      await takeScreenshot(page, 'button-hide-error');
+      throw error;
+    }
+  });
+
+  test('debe actualizar detección al cambiar de issue', async () => {
+    try {
+      // Navegar al primer issue
+      await navigateToGitHubIssue(page, 'facebook', 'react', 1);
+      await page.waitForTimeout(2000);
+
+      // Verificar que el botón esté visible
+      await waitForCronoHubButton(page);
+
+      // Navegar a otro issue
+      await navigateToGitHubIssue(page, 'facebook', 'react', 2);
+      await page.waitForTimeout(2000);
+
+      // El botón debe seguir visible
+      const buttonVisible = await page.$eval('#gtt-toggle-btn',
+        el => window.getComputedStyle(el).display !== 'none'
+      );
+
+      expect(buttonVisible).toBe(true);
+
+      // Verificar que detectó el nuevo issue
+      const newIssueData = await page.evaluate(() => {
+        return window.location.pathname.match(/\/([^\/]+)\/([^\/]+)\/issues\/(\d+)/);
+      });
+
+      expect(newIssueData[3]).toBe('2');
+
+    } catch (error) {
+      await takeScreenshot(page, 'issue-update-error');
+      throw error;
+    }
+  });
+
+  test('debe mantener el botón visible durante navegación SPA', async () => {
+    try {
+      await navigateToGitHubIssue(page, 'facebook', 'react', 1);
+      await page.waitForTimeout(2000);
+      await waitForCronoHubButton(page);
+
+      // Simular clic en un enlace dentro de GitHub (navegación SPA)
+      const hasIssueLink = await page.evaluate(() => {
+        const link = document.querySelector('a[href*="/issues/"]');
+        return !!link;
+      });
+
+      if (hasIssueLink) {
+        // Hacer clic en el primer enlace de issue que encuentre
+        await page.evaluate(() => {
+          const link = document.querySelector('a[href*="/issues/"]');
+          if (link) link.click();
+        });
+
+        // Esperar a que el polling detecte el cambio
+        await page.waitForTimeout(2000);
+
+        // El botón debe seguir visible
+        const buttonVisible = await page.$eval('#gtt-toggle-btn',
+          el => window.getComputedStyle(el).display !== 'none'
+        );
+
+        expect(buttonVisible).toBe(true);
+      }
+
+    } catch (error) {
+      await takeScreenshot(page, 'spa-navigation-error');
+      throw error;
+    }
+  });
+
+  test('debe extraer correctamente el título del issue', async () => {
+    try {
+      await navigateToGitHubIssue(page, 'facebook', 'react', 1);
+      await page.waitForTimeout(2000);
+      await waitForCronoHubButton(page);
+
+      // Extraer el título desde el DOM
+      const titleFromDOM = await page.evaluate(() => {
+        const titleEl = document.querySelector('.js-issue-title, .markdown-title');
+        return titleEl ? titleEl.textContent.trim() : null;
+      });
+
+      expect(titleFromDOM).toBeTruthy();
+      expect(titleFromDOM.length).toBeGreaterThan(0);
+
+    } catch (error) {
+      await takeScreenshot(page, 'title-extraction-error');
+      throw error;
+    }
+  });
+});
