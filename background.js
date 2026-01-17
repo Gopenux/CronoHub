@@ -1,5 +1,5 @@
 // CronoHub - Background Service Worker
-// Author: Gopenux AI
+// Author: Gopenux AI Team
 // Copyright (c) 2026 Gopenux AI
 
 // Minimal service worker for extension detection by Puppeteer
