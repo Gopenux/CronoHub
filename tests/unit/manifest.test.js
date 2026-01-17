@@ -1,6 +1,6 @@
 // CronoHub - Manifest Validation Tests
-// Author: Gopenux AI
-// Copyright (c) 2026 Gopenux AI
+// Author: Gopenux AI Team
+// Copyright (c) 2026 Gopenux AI Team
 
 const fs = require('fs');
 const path = require('path');
@@ -72,8 +72,17 @@ describe('Manifest V3 Validation', () => {
 
   test('content_scripts should include necessary files', () => {
     const contentScript = manifest.content_scripts[0];
+    expect(contentScript.js).toContain('reports.js');
     expect(contentScript.js).toContain('content.js');
     expect(contentScript.css).toContain('styles/content.css');
+  });
+
+  test('content_scripts should load reports.js before content.js', () => {
+    const contentScript = manifest.content_scripts[0];
+    const reportsIndex = contentScript.js.indexOf('reports.js');
+    const contentIndex = contentScript.js.indexOf('content.js');
+
+    expect(reportsIndex).toBeLessThan(contentIndex);
   });
 
   test('should have icons in all required sizes', () => {
