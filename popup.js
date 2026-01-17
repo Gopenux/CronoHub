@@ -1,5 +1,5 @@
 // CronoHub - GitHub Time Tracker
-// Author: Gopenux AI
+// Author: Gopenux AI Team
 // Copyright (c) 2026 Gopenux AI
 
 document.addEventListener('DOMContentLoaded', init);

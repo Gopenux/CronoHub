@@ -1,6 +1,6 @@
 // CronoHub - Extension Structure E2E Tests
-// Author: Gopenux AI
-// Copyright (c) 2026 Gopenux AI
+// Author: Gopenux AI Team
+// Copyright (c) 2026 Gopenux AI Team
 
 const {
   launchBrowserWithExtension
@@ -117,7 +117,7 @@ describe('Extension Structure E2E Tests', () => {
 
     const manifest = await response.json();
     expect(manifest.name).toBe('CronoHub');
-    expect(manifest.version).toBe('1.0.0');
+    expect(manifest.version).toBe('1.1.0');
     expect(manifest.manifest_version).toBe(3);
   });
 

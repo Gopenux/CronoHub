@@ -1,6 +1,6 @@
 // CronoHub - Extension Loader Helper
-// Author: Gopenux AI
-// Copyright (c) 2026 Gopenux AI
+// Author: Gopenux AI Team
+// Copyright (c) 2026 Gopenux AI Team
 
 const path = require('path');
 const fs = require('fs');
@@ -18,6 +18,29 @@ function log(...args) {
   // Only log if not in CI, or if DEBUG is explicitly enabled
   if (!isCI || isDebug) {
     console.log(...args);
+  }
+}
+
+/**
+ * Conditional error logger for diagnostic messages
+ * Only logs diagnostic errors in local development or when DEBUG=true
+ * Always logs critical errors that indicate test failures
+ * @param {string} type - 'diagnostic' or 'critical'
+ * @param  {...any} args - Arguments to log
+ */
+function logError(type, ...args) {
+  const isCI = process.env.CI === 'true';
+  const isDebug = process.env.DEBUG === 'true';
+
+  // Critical errors always log (they indicate actual failures)
+  if (type === 'critical') {
+    console.error(...args);
+    return;
+  }
+
+  // Diagnostic errors only log if not in CI, or if DEBUG is enabled
+  if (type === 'diagnostic' && (!isCI || isDebug)) {
+    console.error(...args);
   }
 }
 
@@ -52,7 +75,7 @@ function verifyExtensionFiles(extensionPath) {
       log(`   ✓ ${file} (${stats.size} bytes)`);
       results.existing.push(file);
     } else {
-      console.error(`   ✗ ${file} - NOT FOUND`);
+      logError('critical', `   ✗ ${file} - NOT FOUND`);
       results.missing.push(file);
       results.allExist = false;
     }
@@ -71,7 +94,7 @@ function verifyExtensionFiles(extensionPath) {
       }
     }
   } catch (err) {
-    console.error('   ⚠️  Warning: Could not parse manifest.json:', err.message);
+    logError('critical', '   ⚠️  Warning: Could not parse manifest.json:', err.message);
   }
 
   return results;
@@ -90,7 +113,7 @@ async function launchBrowserWithExtension(options = {}) {
   // Verify extension files
   const verification = verifyExtensionFiles(extensionPath);
   if (!verification.allExist) {
-    console.error('❌ Extension files are missing:', verification.missing);
+    logError('critical', '❌ Extension files are missing:', verification.missing);
     throw new Error(`Missing extension files: ${verification.missing.join(', ')}`);
   }
 
@@ -115,7 +138,7 @@ async function launchBrowserWithExtension(options = {}) {
 
     // Verify Chrome executable exists
     if (!fs.existsSync(executablePath)) {
-      console.error(`❌ Chrome executable not found at: ${executablePath}`);
+      logError('critical', `❌ Chrome executable not found at: ${executablePath}`);
       throw new Error(`Chrome executable not found: ${executablePath}`);
     }
   } else {
@@ -185,8 +208,8 @@ async function launchBrowserWithExtension(options = {}) {
     const version = await browser.version();
     log('   ℹ️  Browser version:', version);
   } catch (err) {
-    console.error('❌ Failed to launch browser:', err.message);
-    console.error('   Stack:', err.stack);
+    logError('critical', '❌ Failed to launch browser:', err.message);
+    logError('critical', '   Stack:', err.stack);
     throw err;
   }
 
@@ -308,45 +331,47 @@ async function launchBrowserWithExtension(options = {}) {
     const browserVersion = await browser.version();
     const isBeta = browserVersion.includes('beta') || executablePath?.includes('beta');
 
-    console.error('❌ Failed to detect extension ID after', maxRetries, 'attempts');
-    console.error('   This usually means the extension failed to load.');
-    console.error('   Possible causes:');
-    console.error('   1. manifest.json or background.js has syntax errors');
-    console.error('   2. Chrome version incompatibility (especially with Beta versions)');
-    console.error('   3. Extension loading is blocked by Chrome');
-    console.error('   4. Service worker not registering in headed mode (known Chrome Beta issue)');
-    console.error('');
-    console.error('   Diagnostic info:');
-    console.error('   - Extension path:', extensionPath);
-    console.error('   - Files verified:', verification.existing.join(', '));
-    console.error('   - Browser version:', browserVersion);
-    console.error('   - Is Beta:', isBeta);
+    // These are diagnostic messages, not critical failures
+    // The tests continue and succeed even without extension ID detection in some scenarios
+    logError('diagnostic', '❌ Failed to detect extension ID after', maxRetries, 'attempts');
+    logError('diagnostic', '   This usually means the extension failed to load.');
+    logError('diagnostic', '   Possible causes:');
+    logError('diagnostic', '   1. manifest.json or background.js has syntax errors');
+    logError('diagnostic', '   2. Chrome version incompatibility (especially with Beta versions)');
+    logError('diagnostic', '   3. Extension loading is blocked by Chrome');
+    logError('diagnostic', '   4. Service worker not registering in headed mode (known Chrome Beta issue)');
+    logError('diagnostic', '');
+    logError('diagnostic', '   Diagnostic info:');
+    logError('diagnostic', '   - Extension path:', extensionPath);
+    logError('diagnostic', '   - Files verified:', verification.existing.join(', '));
+    logError('diagnostic', '   - Browser version:', browserVersion);
+    logError('diagnostic', '   - Is Beta:', isBeta);
 
     // Try to get chrome logs if available
     try {
       const pages = await browser.pages();
       if (pages.length > 0) {
-        console.error('   - Browser pages:', pages.length);
+        logError('diagnostic', '   - Browser pages:', pages.length);
         for (const page of pages) {
-          console.error('     Page URL:', await page.url());
+          logError('diagnostic', '     Page URL:', await page.url());
         }
       }
     } catch (err) {
-      console.error('   Could not get browser pages:', err.message);
+      logError('diagnostic', '   Could not get browser pages:', err.message);
     }
 
     // For Chrome Beta, this is a known issue - add more context
     if (isBeta) {
-      console.warn('');
-      console.warn('⚠️  CHROME BETA COMPATIBILITY NOTICE:');
-      console.warn('   Chrome Beta (especially v145+) has known issues with MV3 service workers');
-      console.warn('   in Puppeteer headed mode. This may be a Chrome bug, not an extension issue.');
-      console.warn('   The extension likely works correctly in normal Chrome usage.');
-      console.warn('');
-      console.warn('   Recommended actions:');
-      console.warn('   1. Monitor Chrome Beta release notes for service worker fixes');
-      console.warn('   2. Consider marking Beta tests as "continue-on-error" in CI');
-      console.warn('   3. Verify the extension manually loads in Chrome Beta browser');
+      logError('diagnostic', '');
+      logError('diagnostic', '⚠️  CHROME BETA COMPATIBILITY NOTICE:');
+      logError('diagnostic', '   Chrome Beta (especially v145+) has known issues with MV3 service workers');
+      logError('diagnostic', '   in Puppeteer headed mode. This may be a Chrome bug, not an extension issue.');
+      logError('diagnostic', '   The extension likely works correctly in normal Chrome usage.');
+      logError('diagnostic', '');
+      logError('diagnostic', '   Recommended actions:');
+      logError('diagnostic', '   1. Monitor Chrome Beta release notes for service worker fixes');
+      logError('diagnostic', '   2. Consider marking Beta tests as "continue-on-error" in CI');
+      logError('diagnostic', '   3. Verify the extension manually loads in Chrome Beta browser');
     }
   }
 
@@ -365,7 +390,7 @@ async function launchBrowserWithExtension(options = {}) {
 
   // Attach error listener
   page.on('pageerror', error => {
-    console.error('   [Page Error] ❌', error.message);
+    logError('diagnostic', '   [Page Error] ❌', error.message);
   });
 
   // Attach request failed listener

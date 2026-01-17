@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // CronoHub - Automatic Issue Creation Script
-// Author: Gopenux AI
-// Copyright (c) 2026 Gopenux AI
+// Author: Gopenux AI Team
+// Copyright (c) 2026 Gopenux AI Team
 
 const https = require('https');
 

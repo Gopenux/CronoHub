@@ -31,18 +31,19 @@ CronoHub uses a comprehensive testing strategy to ensure the extension remains c
 
 ```
 tests/
-├── e2e/                          # End-to-end tests
+├── e2e/                              # End-to-end tests
 │   ├── helpers/
-│   │   └── extension-loader.js  # Puppeteer utilities for loading extension
-│   ├── authentication.test.js    # Auth flow tests
-│   ├── issue-detection.test.js   # Issue detection tests
-│   └── time-tracking.test.js     # Time tracking flow tests
-├── unit/                         # Unit tests
-│   └── manifest.test.js          # Manifest V3 validation
+│   │   └── extension-loader.js      # Puppeteer utilities for loading extension
+│   ├── extension-structure.test.js  # Extension structure validation
+│   ├── reports.test.js              # Reports module E2E tests (NEW v1.1.0)
+│   └── reports-ui-mocked.test.js    # Reports API tests with mocked GitHub (NEW v1.1.0)
+├── unit/                             # Unit tests
+│   ├── manifest.test.js              # Manifest V3 validation
+│   └── reports.test.js               # Reports module unit tests (NEW v1.1.0)
 ├── scripts/
-│   └── create-failure-issue.js   # Auto issue creation script
-├── screenshots/                  # E2E test screenshots on failure
-└── fixtures/                     # Test data and mocks
+│   └── create-failure-issue.js       # Auto issue creation script
+├── screenshots/                      # E2E test screenshots on failure
+└── fixtures/                         # Test data and mocks
 ```
 
 ## Running Tests
@@ -82,7 +83,40 @@ CHROME_CHANNEL=beta npm run test:e2e
 
 # Use custom Chrome executable
 PUPPETEER_EXECUTABLE_PATH=/path/to/chrome npm run test:e2e
+
+# Enable debug logging in CI environments
+DEBUG=true npm run test:e2e
+
+# Automatically set in GitHub Actions
+CI=true npm run test:e2e  # Suppresses diagnostic logs
 ```
+
+### Log Output Control
+
+The test suite intelligently manages log output based on the execution environment:
+
+**Local Development (CI=false)**:
+- ✅ Full diagnostic logging enabled
+- ✅ Browser launch details
+- ✅ Extension ID detection attempts
+- ✅ All debug information visible
+
+**CI Environment (CI=true)**:
+- ⚡ Clean, minimal output
+- ⚡ Only critical errors logged
+- ⚡ Diagnostic messages suppressed
+- ⚡ Test results clearly visible
+
+**Force Debug Mode**:
+```bash
+# Enable full logging even in CI
+CI=true DEBUG=true npm run test:e2e
+```
+
+This approach ensures:
+- Clean GitHub Actions logs without diagnostic noise
+- Helpful debugging information when developing locally
+- Ability to enable verbose logging in CI when needed
 
 ### Running E2E Tests in CI (Headless Environments)
 
@@ -127,62 +161,100 @@ xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" npm run test:e2e
 npm run validate:manifest
 ```
 
-### 2. Issue Detection E2E Tests
+### 2. Reports Module Unit Tests (NEW in v1.1.0)
 
-**Location**: `tests/e2e/issue-detection.test.js`
+**Location**: `tests/unit/reports.test.js`
 
-**Purpose**: Tests the extension's ability to detect GitHub issues across different contexts.
-
-**Tests Include**:
-- ✅ Extension loads correctly in Chrome
-- ✅ Detects issues from direct URL
-- ✅ Hides button when no issue present
-- ✅ Updates detection on issue navigation
-- ✅ Maintains button during SPA navigation
-- ✅ Extracts issue title correctly
-
-**Key Scenarios**:
-- Direct issue URLs: `/owner/repo/issues/123`
-- GitHub Projects side panel
-- URL parameter-based detection
-
-### 3. Authentication E2E Tests
-
-**Location**: `tests/e2e/authentication.test.js`
-
-**Purpose**: Tests the complete authentication and configuration flow.
+**Purpose**: Tests the CronoHub Reports module functions in isolation.
 
 **Tests Include**:
-- ✅ Shows unauthenticated state initially
-- ✅ Validates empty token input
-- ✅ Saves token to storage
-- ✅ Displays authenticated state
-- ✅ Logout functionality
-- ✅ Persists authentication across reloads
+- ✅ Date range validation (max 90 days)
+- ✅ CronoHub comment parsing
+- ✅ Hour aggregation by date
+- ✅ Total hours calculation
+- ✅ Date formatting
+- ✅ Default date range generation
 
-**Mocking**:
-Tests use mocked GitHub API responses to avoid hitting rate limits.
+**Key Functions Tested**:
+- `validateDateRange()`: Date validation with multiple edge cases
+- `parseTimeFromComment()`: Comment parsing with various formats
+- `aggregateHoursByDate()`: Data grouping logic
+- `calculateTotalHours()`: Accurate hour summation
+- `formatDate()`: Locale-aware date formatting
+- `getDefaultDateRange()`: 7-day range generation
 
-### 4. Time Tracking E2E Tests
+**Running**:
+```bash
+npm run test:unit -- tests/unit/reports.test.js
+```
 
-**Location**: `tests/e2e/time-tracking.test.js`
+### 3. Reports Functionality E2E Tests (NEW in v1.1.0)
 
-**Purpose**: Tests the complete time tracking workflow.
+**Location**: `tests/e2e/reports.test.js`
+
+**Purpose**: Tests the Reports module integration in browser environment.
 
 **Tests Include**:
-- ✅ Opens panel on button click
-- ✅ Displays issue information
-- ✅ Form elements present and functional
-- ✅ Validates hours input
-- ✅ Accepts description text
-- ✅ Formats comments correctly
-- ✅ Closes panel properly
-- ✅ Shows loading state during submission
-- ✅ Handles different hour formats
+- ✅ Reports module loads before content script
+- ✅ Module exposes expected API functions
+- ✅ Date validation works in browser context
+- ✅ Comment parsing handles various formats
+- ✅ Data aggregation produces correct results
+- ✅ Default range generation works correctly
+- ✅ Date formatting uses correct locale
 
-**Test Data**:
-- Valid hour formats: 0.25, 0.5, 1, 2.5, 8, 24
-- Invalid ranges: < 0, > 24
+**Browser Integration**:
+Tests verify that the Reports module is properly injected and accessible via `window.CronoHubReports`.
+
+**Running**:
+```bash
+npm run test:e2e -- tests/e2e/reports.test.js
+```
+
+### 4. Reports UI Integration Tests - Mocked API (NEW in v1.1.0)
+
+**Location**: `tests/e2e/reports-ui-mocked.test.js`
+
+**Purpose**: Tests the Reports module API integration with mocked GitHub responses (no token required).
+
+**Tests Include**:
+- ✅ Organization members loading
+- ✅ User comments fetching
+- ✅ API rate limit error handling
+- ✅ Access denied error handling
+- ✅ Data aggregation with real API structure
+- ✅ Empty results handling
+- ✅ Date filtering validation
+
+**Key Features**:
+- **No authentication required**: Uses `fetch` API mocking
+- **No network calls**: All GitHub API responses are simulated
+- **Deterministic results**: Same output every time
+- **Fast execution**: No external dependencies
+- **Error scenario testing**: Tests rate limits and access errors
+
+**Mocking Strategy**:
+The tests use `page.evaluateOnNewDocument()` to mock the `fetch` API before any scripts load:
+
+```javascript
+window.fetch = function(url, options) {
+  if (url.includes('/orgs/') && url.includes('/members')) {
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve([/* mocked members */])
+    });
+  }
+  // ... more mocks
+};
+```
+
+**Running**:
+```bash
+npm run test:e2e -- tests/e2e/reports-ui-mocked.test.js
+```
+
+---
 
 ## GitHub Actions Integration
 
@@ -409,7 +481,7 @@ Run tests with debug output:
 DEBUG=puppeteer:* npm run test:e2e
 
 # Run single test file
-npm test -- tests/e2e/issue-detection.test.js
+npm test -- tests/e2e/reports.test.js
 
 # Run tests with verbose output
 npm test -- --verbose
@@ -466,5 +538,6 @@ For issues with the testing infrastructure:
 
 ---
 
-**Last Updated**: 2026-01-16
+**Last Updated**: 2026-01-17
+**Version**: 1.1.0
 **Maintainer**: Gopenux AI Team
