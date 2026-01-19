@@ -316,4 +316,181 @@ describe('CronoHub Reports Module', () => {
       expect(callUrl).not.toMatch(/created%3A\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}/);
     });
   });
+
+  describe('fetchUserCommentsInRange - Repository Filtering (Issue #21)', () => {
+    let originalFetch;
+    let fetchSpy;
+
+    beforeEach(() => {
+      // Mock global fetch
+      originalFetch = global.fetch;
+      fetchSpy = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({ items: [] })
+      });
+      global.fetch = fetchSpy;
+    });
+
+    afterEach(() => {
+      // Restore original fetch
+      global.fetch = originalFetch;
+    });
+
+    test('should use org-wide search when repo parameter is not provided', async () => {
+      // Act: Call without repo parameter (backward compatibility)
+      await CronoHubReports.fetchUserCommentsInRange(
+        'testuser',
+        'testorg',
+        '2026-01-01',
+        '2026-01-31',
+        'test-token'
+      );
+
+      // Assert: Should use org: filter
+      expect(fetchSpy).toHaveBeenCalled();
+      const callUrl = fetchSpy.mock.calls[0][0];
+
+      expect(callUrl).toContain('org%3Atestorg'); // org:testorg (URL encoded)
+      expect(callUrl).not.toContain('repo%3A'); // Should NOT have repo: filter
+    });
+
+    test('should filter by specific repository when repo parameter is provided', async () => {
+      // Act: Call with repo parameter
+      await CronoHubReports.fetchUserCommentsInRange(
+        'testuser',
+        'testorg',
+        '2026-01-01',
+        '2026-01-31',
+        'test-token',
+        'CronoHub' // repo parameter
+      );
+
+      // Assert: Should use repo: filter instead of org:
+      expect(fetchSpy).toHaveBeenCalled();
+      const callUrl = fetchSpy.mock.calls[0][0];
+
+      expect(callUrl).toContain('repo%3Atestorg%2FCronoHub'); // repo:testorg/CronoHub (URL encoded)
+      expect(callUrl).not.toContain('org%3Atestorg'); // Should NOT have org: filter
+    });
+
+    test('should construct correct query with repo filter and all other parameters', async () => {
+      // Act
+      await CronoHubReports.fetchUserCommentsInRange(
+        'john',
+        'myorg',
+        '2026-01-15',
+        '2026-01-20',
+        'token123',
+        'my-repo'
+      );
+
+      // Assert
+      expect(fetchSpy).toHaveBeenCalled();
+      const callUrl = fetchSpy.mock.calls[0][0];
+
+      // Verify all query components with repo filter
+      expect(callUrl).toContain('type%3Aissue');
+      expect(callUrl).toContain('commenter%3Ajohn');
+      expect(callUrl).toContain('repo%3Amyorg%2Fmy-repo'); // repo:myorg/my-repo (URL encoded)
+      expect(callUrl).toContain('Time%20Tracked');
+      expect(callUrl).toContain('updated%3A2026-01-15..2026-01-20');
+    });
+
+    test('should handle special characters in repository name', async () => {
+      // Act: Repository with hyphens and dots
+      await CronoHubReports.fetchUserCommentsInRange(
+        'user',
+        'org',
+        '2026-01-01',
+        '2026-01-31',
+        'token',
+        'my-repo.js'
+      );
+
+      // Assert
+      const callUrl = fetchSpy.mock.calls[0][0];
+      expect(callUrl).toContain('repo%3Aorg%2Fmy-repo.js'); // Should encode properly
+    });
+  });
+
+  describe('fetchAllCollaboratorsComments - Repository Filtering (Issue #21)', () => {
+    let originalFetch;
+
+    beforeEach(() => {
+      originalFetch = global.fetch;
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+    });
+
+    test('should pass repo parameter to fetchUserCommentsInRange for each collaborator', async () => {
+      // Mock fetch to track calls
+      const fetchCalls = [];
+      global.fetch = jest.fn((url, options) => {
+        fetchCalls.push({ url, options });
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: jest.fn().mockResolvedValue({ items: [] })
+        });
+      });
+
+      const collaborators = [
+        { login: 'user1', avatar_url: 'avatar1.jpg' },
+        { login: 'user2', avatar_url: 'avatar2.jpg' }
+      ];
+
+      // Act: Call with repo parameter
+      await CronoHubReports.fetchAllCollaboratorsComments(
+        collaborators,
+        'testorg',
+        '2026-01-01',
+        '2026-01-31',
+        'token',
+        'test-repo'
+      );
+
+      // Assert: Should have made 2 calls (one per collaborator) with repo filter
+      expect(fetchCalls.length).toBe(2);
+
+      // Both calls should use repo: filter
+      expect(fetchCalls[0].url).toContain('repo%3Atestorg%2Ftest-repo');
+      expect(fetchCalls[1].url).toContain('repo%3Atestorg%2Ftest-repo');
+
+      // Should NOT use org: filter
+      expect(fetchCalls[0].url).not.toContain('org%3Atestorg');
+      expect(fetchCalls[1].url).not.toContain('org%3Atestorg');
+    });
+
+    test('should use org-wide search when repo parameter is not provided', async () => {
+      const fetchCalls = [];
+      global.fetch = jest.fn((url, options) => {
+        fetchCalls.push({ url, options });
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: jest.fn().mockResolvedValue({ items: [] })
+        });
+      });
+
+      const collaborators = [
+        { login: 'user1', avatar_url: 'avatar1.jpg' }
+      ];
+
+      // Act: Call without repo parameter
+      await CronoHubReports.fetchAllCollaboratorsComments(
+        collaborators,
+        'testorg',
+        '2026-01-01',
+        '2026-01-31',
+        'token'
+      );
+
+      // Assert: Should use org: filter
+      expect(fetchCalls[0].url).toContain('org%3Atestorg');
+      expect(fetchCalls[0].url).not.toContain('repo%3A');
+    });
+  });
 });
