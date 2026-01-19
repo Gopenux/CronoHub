@@ -117,7 +117,7 @@ describe('Extension Structure E2E Tests', () => {
 
     const manifest = await response.json();
     expect(manifest.name).toBe('CronoHub');
-    expect(manifest.version).toBe('1.1.1');
+    expect(manifest.version).toBe('1.2.0');
     expect(manifest.manifest_version).toBe(3);
   });
 

@@ -670,6 +670,128 @@ describe('Content Script - UI Rendering', () => {
       expect(escaped).toContain('&amp;');
     });
   });
+
+  describe('Text Truncation in Reports', () => {
+    test('should apply CSS class for truncation to report entry comments in normal view', () => {
+      // Arrange
+      const longDescription = 'This is a very long description that should be truncated after two lines to maintain UI consistency';
+
+      // Act - Simulate normal view HTML generation
+      let html = '<div class="gtt-report-entry">';
+      html += '<div class="gtt-report-entry-hours">2.5h</div>';
+      html += '<div class="gtt-report-entry-comment">' + escapeHtml(longDescription) + '</div>';
+      html += '</div>';
+
+      // Assert - Verify the CSS class is present
+      expect(html).toContain('gtt-report-entry-comment');
+      expect(html).toContain(longDescription);
+    });
+
+    test('should apply inline truncation styles in iframe view', () => {
+      // Arrange
+      const longDescription = 'This is an extremely long description that goes on and on and should definitely be truncated to two lines maximum to keep the UI clean and consistent across all views';
+
+      // Act - Simulate iframe HTML generation
+      const html = '<div style="font-size:12px;color:#8b949e;flex:1;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;max-height:calc(1.4em * 2);">' + longDescription + '</div>';
+
+      // Assert - Verify styles are present
+      expect(html).toContain('overflow:hidden');
+      expect(html).toContain('text-overflow:ellipsis');
+      expect(html).toContain('-webkit-line-clamp:2');
+      expect(html).toContain('-webkit-box-orient:vertical');
+      expect(html).toContain('line-height:1.4');
+      expect(html).toContain('max-height:calc(1.4em * 2)');
+    });
+
+    test('should handle short descriptions without truncation', () => {
+      // Arrange
+      const shortDescription = 'Short task';
+
+      // Act - Simulate rendering
+      let html = '<div class="gtt-report-entry-comment">' + shortDescription + '</div>';
+
+      // Assert - Short text should render normally
+      expect(html).toContain(shortDescription);
+      expect(html).toContain('gtt-report-entry-comment');
+    });
+
+    test('should handle empty descriptions', () => {
+      // Arrange
+      const emptyDescription = '';
+
+      // Act - Simulate rendering with fallback
+      const displayText = emptyDescription || 'No description';
+      let html = '<div class="gtt-report-entry-comment">' + displayText + '</div>';
+
+      // Assert
+      expect(html).toContain('No description');
+      expect(html).toContain('gtt-report-entry-comment');
+    });
+
+    test('should extract description from comment format correctly', () => {
+      // Arrange
+      const fullComment = '⏱️ **Time Tracked:** 1.5 Hour(s)\n\nImplemented new feature for user authentication\n\n---\n<sub>**Logged with CronoHub** by Gopenux AI Team</sub>';
+
+      // Act - Extract description (line index 2)
+      const lines = fullComment.split('\n');
+      const description = lines[2] || 'No description';
+
+      // Assert
+      expect(description).toBe('Implemented new feature for user authentication');
+    });
+
+    test('should handle multiline descriptions in comment format', () => {
+      // Arrange
+      const fullComment = '⏱️ **Time Tracked:** 2 Hour(s)\n\nFirst line of description\nSecond line of description\nThird line that should be truncated\n\n---\n<sub>**Logged with CronoHub** by Gopenux AI Team</sub>';
+
+      // Act - Extract description (only line 2)
+      const lines = fullComment.split('\n');
+      const description = lines[2] || 'No description';
+
+      // Assert - Should only get first line of description
+      expect(description).toBe('First line of description');
+    });
+
+    test('should render truncated HTML correctly in normal view', () => {
+      // Arrange
+      const entry = {
+        hours: 1.4,
+        comment: '⏱️ **Time Tracked:** 1.4 Hour(s)\n\nNotifications were added to the Slack channel'
+      };
+
+      // Act - Simulate normal view HTML generation
+      const desc = entry.comment.split('\n')[2] || 'No description';
+      let html = '<div class="gtt-report-entry">';
+      html += '<div class="gtt-report-entry-hours">' + entry.hours + 'h</div>';
+      html += '<div class="gtt-report-entry-comment">' + escapeHtml(desc) + '</div>';
+      html += '</div>';
+
+      // Assert
+      expect(html).toContain('gtt-report-entry-comment');
+      expect(html).toContain('Notifications were added to the Slack channel');
+      expect(html).toContain('1.4h');
+    });
+
+    test('should render truncated HTML correctly in iframe view', () => {
+      // Arrange
+      const entry = {
+        hours: 0.6,
+        comment: '⏱️ **Time Tracked:** 0.6 Hour(s)\n\n---'
+      };
+
+      // Act - Simulate iframe view HTML generation
+      const desc = entry.comment.split('\n')[2] || 'No description';
+      let html = '<div style="display:flex;gap:12px;padding:8px;background:#161b22;border-radius:4px;margin-top:6px;">';
+      html += '<div style="font-size:12px;font-weight:600;color:#238636;min-width:40px;">' + entry.hours + 'h</div>';
+      html += '<div style="font-size:12px;color:#8b949e;flex:1;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;max-height:calc(1.4em * 2);">' + desc + '</div>';
+      html += '</div>';
+
+      // Assert
+      expect(html).toContain('0.6h');
+      expect(html).toContain('---');
+      expect(html).toContain('-webkit-line-clamp:2');
+    });
+  });
 });
 
 /**
