@@ -732,9 +732,8 @@ describe('Content Script - UI Rendering', () => {
       // Arrange
       const fullComment = '⏱️ **Time Tracked:** 1.5 Hour(s)\n\nImplemented new feature for user authentication\n\n---\n<sub>**Logged with CronoHub** by Gopenux AI Team</sub>';
 
-      // Act - Extract description (line index 2)
-      const lines = fullComment.split('\n');
-      const description = lines[2] || 'No description';
+      // Act - Extract description using new function
+      const description = extractDescription(fullComment);
 
       // Assert
       expect(description).toBe('Implemented new feature for user authentication');
@@ -744,12 +743,126 @@ describe('Content Script - UI Rendering', () => {
       // Arrange
       const fullComment = '⏱️ **Time Tracked:** 2 Hour(s)\n\nFirst line of description\nSecond line of description\nThird line that should be truncated\n\n---\n<sub>**Logged with CronoHub** by Gopenux AI Team</sub>';
 
-      // Act - Extract description (only line 2)
-      const lines = fullComment.split('\n');
-      const description = lines[2] || 'No description';
+      // Act - Extract full description using new function
+      const description = extractDescription(fullComment);
 
-      // Assert - Should only get first line of description
-      expect(description).toBe('First line of description');
+      // Assert - Should get all lines joined with spaces and cleaned
+      expect(description).toBe('First line of description Second line of description Third line that should be truncated');
+    });
+
+    test('should extract and clean bullet-point descriptions correctly', () => {
+      // Arrange - Real scenario from issue #75
+      const fullComment = '⏱️ **Time Tracked:** 0.6 Hours\n\n• ports were opened and rollback was successfully validated\n• Automatic deployment verified\n\n---\n<sub>**Logged with CronoHub** by Gopenux AI Team</sub>';
+
+      // Act - Extract description using new function
+      const description = extractDescription(fullComment);
+
+      // Assert - Should clean bullet points, join with spaces, and capitalize first letter
+      expect(description).toBe('Ports were opened and rollback was successfully validated Automatic deployment verified');
+      expect(description).not.toContain('•');
+      expect(description).not.toContain('No description');
+      expect(description.charAt(0)).toBe('P'); // Verify first letter is capitalized
+    });
+
+    test('should handle descriptions with various markdown bullet styles', () => {
+      // Arrange
+      const fullComment = '⏱️ **Time Tracked:** 1.5 Hour(s)\n\n- First task completed\n* Second task done\n• Third task verified\n\n---\n<sub>**Logged with CronoHub** by Gopenux AI Team</sub>';
+
+      // Act
+      const description = extractDescription(fullComment);
+
+      // Assert - All bullet types should be cleaned
+      expect(description).toBe('First task completed Second task done Third task verified');
+      expect(description).not.toContain('-');
+      expect(description).not.toContain('*');
+      expect(description).not.toContain('•');
+    });
+
+    test('should capitalize the first letter of description when it starts with lowercase', () => {
+      // Arrange
+      const fullComment = '⏱️ **Time Tracked:** 1 Hour(s)\n\ncreated categories data model\n\n---\n<sub>**Logged with CronoHub** by Gopenux AI Team</sub>';
+
+      // Act
+      const description = extractDescription(fullComment);
+
+      // Assert - First letter should be capitalized
+      expect(description).toBe('Created categories data model');
+      expect(description.charAt(0)).toBe('C');
+    });
+
+    test('should preserve capitalization when first letter is already uppercase', () => {
+      // Arrange
+      const fullComment = '⏱️ **Time Tracked:** 1 Hour(s)\n\nRemove unnecessary code comments\n\n---\n<sub>**Logged with CronoHub** by Gopenux AI Team</sub>';
+
+      // Act
+      const description = extractDescription(fullComment);
+
+      // Assert - Should remain capitalized
+      expect(description).toBe('Remove unnecessary code comments');
+      expect(description.charAt(0)).toBe('R');
+    });
+
+    test('should capitalize first letter after cleaning bullet points', () => {
+      // Arrange
+      const fullComment = '⏱️ **Time Tracked:** 0.5 Hour(s)\n\n- refactor and clean README\n\n---\n<sub>**Logged with CronoHub** by Gopenux AI Team</sub>';
+
+      // Act
+      const description = extractDescription(fullComment);
+
+      // Assert - First letter should be capitalized after removing bullet
+      expect(description).toBe('Refactor and clean README');
+      expect(description.charAt(0)).toBe('R');
+      expect(description).not.toContain('-');
+    });
+
+    test('should capitalize first letter with multiline descriptions', () => {
+      // Arrange
+      const fullComment = '⏱️ **Time Tracked:** 1 Hour(s)\n\nan attempt was made to validate\nthe rollback in GitHub Actions, which ...\n\n---\n<sub>**Logged with CronoHub** by Gopenux AI Team</sub>';
+
+      // Act
+      const description = extractDescription(fullComment);
+
+      // Assert - First letter of joined text should be capitalized
+      expect(description.charAt(0)).toBe('A');
+      expect(description).toContain('An attempt was made to validate');
+    });
+
+    test('should clean leading and trailing whitespace, newlines, and tabs from input', () => {
+      // Arrange - Simulate user input with excess whitespace
+      const rawInput = '  \n\t  User entered description with extra spaces  \n\r\t  ';
+
+      // Act - Simulate input cleaning (same logic as handleSubmit)
+      const cleanedInput = rawInput.replace(/^[\s\n\r\t]+|[\s\n\r\t]+$/g, '').trim();
+
+      // Assert - Should remove all leading/trailing whitespace
+      expect(cleanedInput).toBe('User entered description with extra spaces');
+      expect(cleanedInput).not.toMatch(/^\s/);
+      expect(cleanedInput).not.toMatch(/\s$/);
+      expect(cleanedInput).not.toContain('\n');
+      expect(cleanedInput).not.toContain('\t');
+    });
+
+    test('should handle input with only whitespace characters', () => {
+      // Arrange
+      const whitespaceOnly = '  \n\t\r  ';
+
+      // Act
+      const cleaned = whitespaceOnly.replace(/^[\s\n\r\t]+|[\s\n\r\t]+$/g, '').trim();
+
+      // Assert - Should result in empty string
+      expect(cleaned).toBe('');
+    });
+
+    test('should preserve internal spaces in multiline input after cleaning', () => {
+      // Arrange
+      const multilineInput = '  \nFirst line\nSecond line\n  ';
+
+      // Act
+      const cleaned = multilineInput.replace(/^[\s\n\r\t]+|[\s\n\r\t]+$/g, '').trim();
+
+      // Assert - Should keep internal newlines but remove outer whitespace
+      expect(cleaned).toBe('First line\nSecond line');
+      expect(cleaned.split('\n').length).toBe(2);
     });
 
     test('should render truncated HTML correctly in normal view', () => {
@@ -759,8 +872,8 @@ describe('Content Script - UI Rendering', () => {
         comment: '⏱️ **Time Tracked:** 1.4 Hour(s)\n\nNotifications were added to the Slack channel'
       };
 
-      // Act - Simulate normal view HTML generation
-      const desc = entry.comment.split('\n')[2] || 'No description';
+      // Act - Simulate normal view HTML generation with new extractDescription function
+      const desc = extractDescription(entry.comment);
       let html = '<div class="gtt-report-entry">';
       html += '<div class="gtt-report-entry-hours">' + entry.hours + 'h</div>';
       html += '<div class="gtt-report-entry-comment">' + escapeHtml(desc) + '</div>';
@@ -779,8 +892,8 @@ describe('Content Script - UI Rendering', () => {
         comment: '⏱️ **Time Tracked:** 0.6 Hour(s)\n\n---'
       };
 
-      // Act - Simulate iframe view HTML generation
-      const desc = entry.comment.split('\n')[2] || 'No description';
+      // Act - Simulate iframe view HTML generation with new extractDescription function
+      const desc = extractDescription(entry.comment);
       let html = '<div style="display:flex;gap:12px;padding:8px;background:#161b22;border-radius:4px;margin-top:6px;">';
       html += '<div style="font-size:12px;font-weight:600;color:#238636;min-width:40px;">' + entry.hours + 'h</div>';
       html += '<div style="font-size:12px;color:#8b949e;flex:1;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;max-height:calc(1.4em * 2);">' + desc + '</div>';
@@ -788,7 +901,7 @@ describe('Content Script - UI Rendering', () => {
 
       // Assert
       expect(html).toContain('0.6h');
-      expect(html).toContain('---');
+      expect(html).toContain('No description'); // Now returns 'No description' instead of '---'
       expect(html).toContain('-webkit-line-clamp:2');
     });
   });
@@ -1018,7 +1131,7 @@ describe('Content Script - UI Rendering', () => {
           comment: '⏱️ **Time Tracked:** 2.5 Hour(s)\n\nImplemented feature X'
         };
 
-        const description = entry.comment.split('\n')[2] || 'No description';
+        const description = extractDescription(entry.comment);
         const issueData = extractIssueData(entry.url);
         const currentIssue = '123';
         const linkHTML = generateSmartDualLinkHTML(issueData, description, currentIssue);
@@ -1041,7 +1154,7 @@ describe('Content Script - UI Rendering', () => {
           comment: '⏱️ **Time Tracked:** 1.5 Hour(s)\n\nFixed bug Y'
         };
 
-        const description = entry.comment.split('\n')[2] || 'No description';
+        const description = extractDescription(entry.comment);
         const issueData = extractIssueData(entry.url);
         const currentIssue = '123';
         const linkHTML = generateSmartDualLinkHTML(issueData, description, currentIssue);
@@ -1074,4 +1187,63 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+/**
+ * Capitalizes the first letter of a string (same as content.js)
+ */
+function capitalizeFirstLetter(str) {
+  if (!str || str.length === 0) return str;
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
+ * Extracts the description from a CronoHub comment (same as content.js)
+ * Format: ⏱️ **Time Tracked:** X Hour(s)\n\n{description}\n\n---\n...
+ * Cleans bullet points and special characters for display (max 2 lines)
+ */
+function extractDescription(comment) {
+  if (!comment) return 'No description';
+
+  const lines = comment.split('\n');
+  const descriptionLines = [];
+  let startCollecting = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Skip the time tracked header
+    if (line.match(/⏱️\s*\*\*Time Tracked:\*\*/)) {
+      startCollecting = true;
+      continue;
+    }
+
+    // Stop when we hit the separator
+    if (line.trim() === '---') {
+      break;
+    }
+
+    // Collect lines after header
+    if (startCollecting) {
+      // Skip leading empty lines but keep empty lines within description
+      if (descriptionLines.length > 0 || line.trim() !== '') {
+        descriptionLines.push(line);
+      }
+    }
+  }
+
+  // Join and clean
+  let description = descriptionLines.join(' ').trim();
+
+  // Clean bullet points and special markdown characters
+  description = description
+    .replace(/^[•\-*]\s+/gm, '') // Remove bullet points at start of lines
+    .replace(/[•\-*]\s+/g, ' ')  // Replace inline bullets with space
+    .replace(/\s+/g, ' ')         // Normalize multiple spaces to single space
+    .trim();
+
+  // Capitalize first letter
+  description = capitalizeFirstLetter(description);
+
+  return description || 'No description';
 }

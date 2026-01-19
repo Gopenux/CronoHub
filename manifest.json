@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CronoHub",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Track time on GitHub issues. Register worked hours directly in comments with automatic formatting. By Gopenux AI.",
   "author": "Gopenux AI - Gopenux Lab",
   "background": {
