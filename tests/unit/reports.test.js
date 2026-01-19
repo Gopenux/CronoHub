@@ -224,4 +224,96 @@ describe('CronoHub Reports Module', () => {
       expect(end >= start).toBe(true);
     });
   });
+
+  describe('fetchUserCommentsInRange - API Query Construction (Regression Test for Issue #13)', () => {
+    let originalFetch;
+    let fetchSpy;
+
+    beforeEach(() => {
+      // Mock global fetch
+      originalFetch = global.fetch;
+      fetchSpy = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: jest.fn().mockResolvedValue({ items: [] })
+      });
+      global.fetch = fetchSpy;
+    });
+
+    afterEach(() => {
+      // Restore original fetch
+      global.fetch = originalFetch;
+    });
+
+    test('should use "updated:" filter instead of "created:" in search query', async () => {
+      // Act: Call the function with a specific date range
+      await CronoHubReports.fetchUserCommentsInRange(
+        'testuser',
+        'testorg',
+        '2026-01-19',
+        '2026-01-19',
+        'test-token'
+      );
+
+      // Assert: Verify fetch was called
+      expect(fetchSpy).toHaveBeenCalled();
+
+      // Get the URL from the first call
+      const callUrl = fetchSpy.mock.calls[0][0];
+
+      // Verify the query contains "updated:" not "created:" (URL encoded)
+      expect(callUrl).toContain('updated%3A2026-01-19..2026-01-19');
+      expect(callUrl).not.toContain('created%3A2026-01-19..2026-01-19');
+    });
+
+    test('should construct correct search query with all required parameters', async () => {
+      // Act
+      await CronoHubReports.fetchUserCommentsInRange(
+        'john',
+        'myorg',
+        '2026-01-15',
+        '2026-01-20',
+        'token123'
+      );
+
+      // Assert
+      expect(fetchSpy).toHaveBeenCalled();
+      const callUrl = fetchSpy.mock.calls[0][0];
+
+      // Verify all query components are present (URL encoded)
+      expect(callUrl).toContain('type%3Aissue');
+      expect(callUrl).toContain('commenter%3Ajohn');
+      expect(callUrl).toContain('org%3Amyorg');
+      expect(callUrl).toContain('Time%20Tracked'); // URL encoded
+      expect(callUrl).toContain('updated%3A2026-01-15..2026-01-20');
+
+      // Verify Authorization header
+      const callOptions = fetchSpy.mock.calls[0][1];
+      expect(callOptions.headers.Authorization).toBe('Bearer token123');
+    });
+
+    test('should use issue updated date as proxy for comment date (not issue created date)', async () => {
+      // This test documents the behavior fix for issue #13:
+      // When searching for comments in a date range, we must use "updated:"
+      // because GitHub Search API doesn't support filtering by comment creation date.
+      // Using "created:" would filter by issue creation date, missing issues
+      // that were created before the range but had comments within the range.
+
+      await CronoHubReports.fetchUserCommentsInRange(
+        'helysm',
+        'Gopenux',
+        '2026-01-19',
+        '2026-01-19',
+        'token'
+      );
+
+      const callUrl = fetchSpy.mock.calls[0][0];
+
+      // The key assertion: must use "updated:" for issues with recent comment activity (URL encoded)
+      expect(callUrl).toMatch(/updated%3A\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}/);
+
+      // Must NOT use "created:" which would miss older issues with new comments (URL encoded)
+      expect(callUrl).not.toMatch(/created%3A\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}/);
+    });
+  });
 });
