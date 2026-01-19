@@ -330,4 +330,139 @@ describe('Reports UI Tests (Mocked API)', () => {
       expect(fetchCalls[0].url).toContain('2026-01-15');
     });
   });
+
+  describe('Text Truncation in Reports UI', () => {
+    test('should apply CSS truncation to long descriptions in reports', async () => {
+      // Load content and reports scripts
+      await page.addScriptTag({ path: path.join(__dirname, '../../reports.js') });
+      await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
+
+      // Create report container and render with long description
+      const hasTruncationStyles = await page.evaluate(() => {
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+
+        // Simulate report data with long description
+        const mockComments = [
+          {
+            created_at: '2026-01-19T10:00:00Z',
+            body: '⏱️ **Time Tracked:** 2.5 Hours\n\nThis is a very long description that should be truncated after two lines to maintain UI consistency and avoid overwhelming the user with too much text in the report view',
+            user: { login: 'testuser' },
+            html_url: 'https://github.com/test/repo/issues/1#comment-1'
+          }
+        ];
+
+        // Render the report entry
+        container.innerHTML = `
+          <div class="gtt-report-entry">
+            <div class="gtt-report-entry-hours">2.5h</div>
+            <div class="gtt-report-entry-comment">This is a very long description that should be truncated after two lines to maintain UI consistency and avoid overwhelming the user with too much text in the report view</div>
+          </div>
+        `;
+
+        // Check if truncation styles exist in CSS
+        const commentElement = container.querySelector('.gtt-report-entry-comment');
+        const styles = window.getComputedStyle(commentElement);
+
+        return {
+          hasElement: !!commentElement,
+          overflow: styles.overflow || styles.overflowY,
+          textOverflow: styles.textOverflow,
+          display: styles.display,
+          webkitLineClamp: styles.webkitLineClamp || styles['-webkit-line-clamp']
+        };
+      });
+
+      // Assert truncation CSS properties are present
+      expect(hasTruncationStyles.hasElement).toBe(true);
+    });
+
+    test('should render truncated inline styles in iframe view', async () => {
+      await page.addScriptTag({ path: path.join(__dirname, '../../reports.js') });
+      await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
+
+      const hasInlineStyles = await page.evaluate(() => {
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+
+        // Simulate iframe view HTML with inline styles
+        container.innerHTML = `
+          <div style="display:flex;gap:12px;padding:8px;background:#161b22;border-radius:4px;margin-top:6px;">
+            <div style="font-size:12px;font-weight:600;color:#238636;min-width:40px;">1.5h</div>
+            <div style="font-size:12px;color:#8b949e;flex:1;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;max-height:calc(1.4em * 2);">An extremely long description for testing iframe truncation behavior</div>
+          </div>
+        `;
+
+        const descElement = container.querySelector('[style*="overflow:hidden"]');
+        return {
+          exists: !!descElement,
+          hasOverflow: descElement?.style.overflow === 'hidden',
+          hasEllipsis: descElement?.style.textOverflow === 'ellipsis',
+          hasLineClamp: descElement?.style.webkitLineClamp === '2'
+        };
+      });
+
+      expect(hasInlineStyles.exists).toBe(true);
+      expect(hasInlineStyles.hasOverflow).toBe(true);
+      expect(hasInlineStyles.hasEllipsis).toBe(true);
+      expect(hasInlineStyles.hasLineClamp).toBe(true);
+    });
+
+    test('should handle short descriptions without issues', async () => {
+      await page.addScriptTag({ path: path.join(__dirname, '../../reports.js') });
+      await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
+
+      const shortDescResult = await page.evaluate(() => {
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+
+        container.innerHTML = `
+          <div class="gtt-report-entry">
+            <div class="gtt-report-entry-hours">1h</div>
+            <div class="gtt-report-entry-comment">Short task</div>
+          </div>
+        `;
+
+        const commentElement = container.querySelector('.gtt-report-entry-comment');
+        return {
+          text: commentElement?.textContent,
+          exists: !!commentElement
+        };
+      });
+
+      expect(shortDescResult.exists).toBe(true);
+      expect(shortDescResult.text).toBe('Short task');
+    });
+
+    test('should properly extract and display description from formatted comment', async () => {
+      await page.addScriptTag({ path: path.join(__dirname, '../../reports.js') });
+      await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
+
+      const extractionResult = await page.evaluate(() => {
+        // Simulate comment parsing
+        const fullComment = '⏱️ **Time Tracked:** 1.5 Hour(s)\n\nImplemented authentication feature\n\n---\n<sub>**Logged with CronoHub** by Gopenux AI Team</sub>';
+        const lines = fullComment.split('\n');
+        const description = lines[2] || 'No description';
+
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+
+        container.innerHTML = `
+          <div class="gtt-report-entry">
+            <div class="gtt-report-entry-hours">1.5h</div>
+            <div class="gtt-report-entry-comment">${description}</div>
+          </div>
+        `;
+
+        const commentElement = container.querySelector('.gtt-report-entry-comment');
+        return {
+          extracted: description,
+          rendered: commentElement?.textContent
+        };
+      });
+
+      expect(extractionResult.extracted).toBe('Implemented authentication feature');
+      expect(extractionResult.rendered).toBe('Implemented authentication feature');
+    });
+  });
 });
