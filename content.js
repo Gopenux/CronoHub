@@ -930,8 +930,18 @@ console.log('CronoHub: Content script loaded');
       return;
     }
 
-    // Get organization
-    var org = state.issueData ? state.issueData.owner : window.location.pathname.match(/\/([^/]+)\/([^/]+)/)[1];
+    // Get organization and repository
+    var org, repo;
+    if (state.issueData) {
+      org = state.issueData.owner;
+      repo = state.issueData.repo;
+    } else {
+      var match = window.location.pathname.match(/\/([^/]+)\/([^/]+)/);
+      if (match) {
+        org = match[1];
+        repo = match[2];
+      }
+    }
 
     // Show loading
     btn.disabled = true;
@@ -942,9 +952,9 @@ console.log('CronoHub: Content script loaded');
       ? state.selectedCollaborators.map(function(c) { return c.login; })
       : state.allCollaborators.map(function(c) { return c.login; });
 
-    // Fetch report data for selected users
+    // Fetch report data for selected users (filtered by current repository)
     var fetchPromises = selectedUsernames.map(function(username) {
-      return window.CronoHubReports.fetchUserCommentsInRange(username, org, startDate, endDate, state.config.githubToken)
+      return window.CronoHubReports.fetchUserCommentsInRange(username, org, startDate, endDate, state.config.githubToken, repo)
         .then(function(comments) {
           return {
             username: username,
@@ -999,7 +1009,18 @@ console.log('CronoHub: Content script loaded');
       return;
     }
 
-    var org = state.issueData ? state.issueData.owner : window.location.pathname.match(/\/([^/]+)\/([^/]+)/)[1];
+    // Get organization and repository
+    var org, repo;
+    if (state.issueData) {
+      org = state.issueData.owner;
+      repo = state.issueData.repo;
+    } else {
+      var match = window.location.pathname.match(/\/([^/]+)\/([^/]+)/);
+      if (match) {
+        org = match[1];
+        repo = match[2];
+      }
+    }
 
     btn.disabled = true;
     btn.innerHTML = '<div class="gtt-spinner"></div>Loading...';
@@ -1009,9 +1030,9 @@ console.log('CronoHub: Content script loaded');
       selectedOptions = Array.from(select.options).map(function(option) { return option.value; });
     }
 
-    // Fetch report data for selected users
+    // Fetch report data for selected users (filtered by current repository)
     var fetchPromises = selectedOptions.map(function(username) {
-      return window.CronoHubReports.fetchUserCommentsInRange(username, org, startDate, endDate, state.config.githubToken)
+      return window.CronoHubReports.fetchUserCommentsInRange(username, org, startDate, endDate, state.config.githubToken, repo)
         .then(function(comments) {
           return {
             username: username,
