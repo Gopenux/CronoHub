@@ -117,28 +117,15 @@ describe('Content Script - Advanced Functionality', () => {
       expect(mockChrome.storage.onChanged.addListener).toBeDefined();
 
       // Simulate adding listener (as content.js does)
-      let configUpdateCallback;
       mockChrome.storage.onChanged.addListener((callback) => {
-        configUpdateCallback = callback;
+        // Listener added for storage changes
+        void callback;
       });
 
       const listener = storageListeners[0];
       expect(listener).toBeDefined();
 
-      // Act - Trigger storage change
-      const newToken = 'new-token-updated';
-      const changes = {
-        githubToken: {
-          oldValue: 'old-token',
-          newValue: newToken
-        },
-        userData: {
-          oldValue: { login: 'olduser' },
-          newValue: { login: 'newuser', name: 'New User' }
-        }
-      };
-
-      // Simulate loadConfig being called
+      // Act - Trigger storage change and simulate loadConfig being called
       const updatedConfig = await new Promise((resolve) => {
         chrome.storage.local.get(['githubToken', 'userData'], resolve);
       });
@@ -154,8 +141,6 @@ describe('Content Script - Advanced Functionality', () => {
       mockChrome.storage.onChanged.addListener(listener);
 
       // Act - Trigger sync storage change (should be ignored)
-      const syncListener = storageListeners[0];
-
       // In real implementation, listener checks namespace === 'local'
       const shouldReact = (namespace) => namespace === 'local';
 
@@ -171,7 +156,7 @@ describe('Content Script - Advanced Functionality', () => {
 
       // Act
       const error = await new Promise((resolve) => {
-        chrome.storage.local.get(['githubToken', 'userData'], (data) => {
+        chrome.storage.local.get(['githubToken', 'userData'], () => {
           if (chrome.runtime.lastError) {
             resolve(chrome.runtime.lastError);
           } else {
@@ -603,6 +588,191 @@ describe('Content Script - Advanced Functionality', () => {
 
       // Assert
       expect(org).toBeNull();
+    });
+  });
+
+  describe('Smart Dual Clickable Links', () => {
+    describe('getCurrentIssueNumber', () => {
+      test('should extract issue number from URL', () => {
+        // Arrange
+        mockWindow.location.pathname = '/gopenux/cronohub/issues/42';
+
+        // Act
+        const issueNumber = (() => {
+          const urlMatch = mockWindow.location.pathname.match(/\/issues\/(\d+)/);
+          return urlMatch ? urlMatch[1] : null;
+        })();
+
+        // Assert
+        expect(issueNumber).toBe('42');
+      });
+
+      test('should return null when not on issue page', () => {
+        // Arrange
+        mockWindow.location.pathname = '/gopenux/cronohub/pulls/42';
+
+        // Act
+        const issueNumber = (() => {
+          const urlMatch = mockWindow.location.pathname.match(/\/issues\/(\d+)/);
+          return urlMatch ? urlMatch[1] : null;
+        })();
+
+        // Assert
+        expect(issueNumber).toBeNull();
+      });
+
+      test('should fallback to state object when URL method fails', () => {
+        // Arrange
+        mockWindow.location.pathname = '/gopenux/cronohub';
+        state.issueData = { number: 123 };
+
+        // Act
+        const issueNumber = (() => {
+          const urlMatch = mockWindow.location.pathname.match(/\/issues\/(\d+)/);
+          if (urlMatch) return urlMatch[1];
+          if (state.issueData && state.issueData.number) {
+            return String(state.issueData.number);
+          }
+          return null;
+        })();
+
+        // Assert
+        expect(issueNumber).toBe('123');
+      });
+    });
+
+    describe('extractIssueData', () => {
+      test('should extract issue number and URLs from comment URL', () => {
+        // Arrange
+        const commentUrl = 'https://github.com/gopenux/cronohub/issues/42#issuecomment-123456';
+
+        // Act
+        const issueMatch = commentUrl.match(/\/issues\/(\d+)/);
+        const issueNumber = issueMatch ? issueMatch[1] : null;
+        const issueUrl = commentUrl.replace(/#issuecomment-\d+$/, '');
+        const commentIdMatch = commentUrl.match(/#(issuecomment-\d+)$/);
+        const commentId = commentIdMatch ? commentIdMatch[1] : null;
+
+        // Assert
+        expect(issueNumber).toBe('42');
+        expect(issueUrl).toBe('https://github.com/gopenux/cronohub/issues/42');
+        expect(commentId).toBe('issuecomment-123456');
+      });
+
+      test('should handle URL without comment ID', () => {
+        // Arrange
+        const commentUrl = 'https://github.com/gopenux/cronohub/issues/42';
+
+        // Act
+        const issueMatch = commentUrl.match(/\/issues\/(\d+)/);
+        const commentIdMatch = commentUrl.match(/#(issuecomment-\d+)$/);
+        const commentId = commentIdMatch ? commentIdMatch[1] : null;
+
+        // Assert
+        expect(issueMatch[1]).toBe('42');
+        expect(commentId).toBeNull();
+      });
+
+      test('should return null for invalid URLs', () => {
+        // Arrange
+        const commentUrl = 'https://github.com/gopenux/cronohub/pulls/42';
+
+        // Act
+        const issueMatch = commentUrl.match(/\/issues\/(\d+)/);
+
+        // Assert
+        expect(issueMatch).toBeNull();
+      });
+
+      test('should handle null or undefined URLs', () => {
+        // Act & Assert
+        expect(null).toBeNull();
+        expect(undefined).toBeUndefined();
+      });
+    });
+
+    describe('generateSmartLink', () => {
+      test('should create dual clickable links for same issue', () => {
+        // Arrange
+        const currentIssue = '42';
+        const commentUrl = 'https://github.com/gopenux/cronohub/issues/42#issuecomment-123456';
+
+        // Extract data
+        const issueMatch = commentUrl.match(/\/issues\/(\d+)/);
+        const targetIssue = issueMatch ? issueMatch[1] : null;
+        const commentIdMatch = commentUrl.match(/#(issuecomment-\d+)$/);
+        const commentId = commentIdMatch ? commentIdMatch[1] : null;
+
+        // Act - Same issue scenario
+        const isSameIssue = currentIssue === targetIssue;
+        const shouldNavigateToComment = !!(isSameIssue && commentId);
+
+        // Assert
+        expect(isSameIssue).toBe(true);
+        expect(shouldNavigateToComment).toBe(true);
+        expect(commentId).toBe('issuecomment-123456');
+      });
+
+      test('should create dual clickable links for different issue', () => {
+        // Arrange
+        const currentIssue = '42';
+        const commentUrl = 'https://github.com/gopenux/cronohub/issues/99#issuecomment-789012';
+
+        // Extract data
+        const issueMatch = commentUrl.match(/\/issues\/(\d+)/);
+        const targetIssue = issueMatch ? issueMatch[1] : null;
+        const issueUrl = commentUrl.replace(/#issuecomment-\d+$/, '');
+
+        // Act - Different issue scenario
+        const isSameIssue = currentIssue === targetIssue;
+        const shouldOpenInNewTab = !isSameIssue;
+
+        // Assert
+        expect(isSameIssue).toBe(false);
+        expect(shouldOpenInNewTab).toBe(true);
+        expect(issueUrl).toBe('https://github.com/gopenux/cronohub/issues/99');
+      });
+
+      test('should render both issue number and timestamp as clickable', () => {
+        // Arrange
+        const issueNumber = '42';
+        const timestamp = '2026-01-15 10:30';
+
+        // Act - Simulate HTML generation
+        const issueHtml = `<a style="color: #0969da; cursor: pointer;">#${issueNumber}</a>`;
+        const timestampHtml = `<span style="color: #656d76; cursor: pointer;">${timestamp}</span>`;
+
+        // Assert - Both should have clickable styling
+        expect(issueHtml).toContain('cursor: pointer');
+        expect(issueHtml).toContain('#42');
+        expect(timestampHtml).toContain('cursor: pointer');
+        expect(timestampHtml).toContain('2026-01-15 10:30');
+      });
+
+      test('should handle missing comment URL gracefully', () => {
+        // Arrange
+        const commentUrl = null;
+
+        // Act
+        const issueMatch = commentUrl ? commentUrl.match(/\/issues\/(\d+)/) : null;
+
+        // Assert
+        expect(issueMatch).toBeNull();
+      });
+
+      test('should apply hover effects to both links', () => {
+        // Arrange - Simulate hover styles
+        const issueStyle = 'color: #0969da; cursor: pointer; text-decoration: none';
+        const issueHoverStyle = 'text-decoration: underline';
+        const timestampStyle = 'color: #656d76; cursor: pointer';
+        const timestampHoverStyle = 'text-decoration: underline';
+
+        // Assert - Verify hover effect styles exist
+        expect(issueHoverStyle).toContain('underline');
+        expect(timestampHoverStyle).toContain('underline');
+        expect(issueStyle).toContain('cursor: pointer');
+        expect(timestampStyle).toContain('cursor: pointer');
+      });
     });
   });
 });

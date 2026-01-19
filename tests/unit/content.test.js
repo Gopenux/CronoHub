@@ -10,7 +10,6 @@ const GitHubAPIMocks = require('../mocks/github-api-mocks');
  */
 describe('Content Script - Time Logging', () => {
   let mockChrome;
-  let mockFetch;
   let mockWindow;
 
   beforeEach(() => {
@@ -404,7 +403,7 @@ describe('Content Script - Time Logging', () => {
       let isValid;
       try {
         isValid = !!(chrome && chrome.runtime && chrome.runtime.id);
-      } catch (e) {
+      } catch {
         isValid = false;
       }
 

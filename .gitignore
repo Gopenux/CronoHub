@@ -1,5 +1,8 @@
 CLAUDE.md
 
+# Claude Code temporary files
+.claude/
+
 # Node modules
 node_modules/
 

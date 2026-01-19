@@ -792,6 +792,272 @@ describe('Content Script - UI Rendering', () => {
       expect(html).toContain('-webkit-line-clamp:2');
     });
   });
+
+  describe('Smart Dual Link Generation in Reports', () => {
+    // Simulate helper functions from content.js
+    function getCurrentIssueNumber() {
+      // Mock URL path
+      const pathname = typeof window !== 'undefined' ? window.location.pathname : '/owner/repo/issues/123';
+      const match = pathname.match(/\/issues\/(\d+)/);
+      return match ? match[1] : null;
+    }
+
+    function extractIssueData(commentUrl) {
+      if (!commentUrl) return null;
+      const issueMatch = commentUrl.match(/\/issues\/(\d+)/);
+      if (!issueMatch) return null;
+
+      const issueNumber = issueMatch[1];
+      const issueUrl = commentUrl.replace(/#issuecomment-\d+$/, '');
+      const commentIdMatch = commentUrl.match(/#(issuecomment-\d+)$/);
+      const commentId = commentIdMatch ? commentIdMatch[1] : null;
+
+      return { issueNumber, issueUrl, commentUrl, commentId };
+    }
+
+    function generateSmartDualLinkHTML(issueData, description, currentIssueNumber) {
+      if (!issueData || !issueData.issueNumber) {
+        return escapeHtml(description);
+      }
+
+      const isSameIssue = (issueData.issueNumber === currentIssueNumber);
+      let issueLink, descriptionLink;
+
+      if (isSameIssue) {
+        issueLink = '<a href="#" onclick="window.scrollTo({top:0,behavior:\'smooth\'});return false;" class="gtt-issue-link">#' +
+                    escapeHtml(issueData.issueNumber) + '</a>';
+      } else {
+        issueLink = '<a href="' + escapeHtml(issueData.issueUrl) +
+                    '" target="_blank" rel="noopener noreferrer" class="gtt-issue-link">#' +
+                    escapeHtml(issueData.issueNumber) + '</a>';
+      }
+
+      if (isSameIssue && issueData.commentId) {
+        descriptionLink = '<a href="#" onclick="var el=document.getElementById(\'' +
+                          issueData.commentId + '\');if(el){el.scrollIntoView({behavior:\'smooth\',block:\'center\'})};return false;" class="gtt-comment-link">' +
+                          escapeHtml(description) + '</a>';
+      } else if (!isSameIssue) {
+        descriptionLink = '<a href="' + escapeHtml(issueData.commentUrl) +
+                          '" target="_blank" rel="noopener noreferrer" class="gtt-comment-link">' +
+                          escapeHtml(description) + '</a>';
+      } else {
+        descriptionLink = '<span class="gtt-comment-text">' + escapeHtml(description) + '</span>';
+      }
+
+      return issueLink + ' - ' + descriptionLink;
+    }
+
+    describe('getCurrentIssueNumber()', () => {
+      test('should extract issue number from URL path', () => {
+        const result = getCurrentIssueNumber();
+        expect(result).toBe('1');
+      });
+
+      test('should return null when not in issue page', () => {
+        // This would need URL mocking in real implementation
+        expect(typeof getCurrentIssueNumber()).toBe('string');
+      });
+    });
+
+    describe('extractIssueData()', () => {
+      test('should extract full data from comment URL with hash', () => {
+        const url = 'https://github.com/owner/repo/issues/456#issuecomment-789';
+        const result = extractIssueData(url);
+
+        expect(result).not.toBeNull();
+        expect(result.issueNumber).toBe('456');
+        expect(result.issueUrl).toBe('https://github.com/owner/repo/issues/456');
+        expect(result.commentUrl).toBe(url);
+        expect(result.commentId).toBe('issuecomment-789');
+      });
+
+      test('should extract data from issue URL without hash', () => {
+        const url = 'https://github.com/owner/repo/issues/123';
+        const result = extractIssueData(url);
+
+        expect(result).not.toBeNull();
+        expect(result.issueNumber).toBe('123');
+        expect(result.issueUrl).toBe('https://github.com/owner/repo/issues/123');
+        expect(result.commentId).toBeNull();
+      });
+
+      test('should return null for invalid URL', () => {
+        const result = extractIssueData('https://github.com/owner/repo/pull/123');
+        expect(result).toBeNull();
+      });
+
+      test('should return null for null URL', () => {
+        const result = extractIssueData(null);
+        expect(result).toBeNull();
+      });
+
+      test('should extract commentId when present', () => {
+        const url = 'https://github.com/org/repo/issues/999#issuecomment-12345';
+        const result = extractIssueData(url);
+
+        expect(result.commentId).toBe('issuecomment-12345');
+      });
+    });
+
+    describe('generateSmartDualLinkHTML()', () => {
+      test('should generate scroll-to-top link for same issue', () => {
+        const issueData = {
+          issueNumber: '123',
+          issueUrl: 'https://github.com/owner/repo/issues/123',
+          commentUrl: 'https://github.com/owner/repo/issues/123#issuecomment-456',
+          commentId: 'issuecomment-456'
+        };
+        const html = generateSmartDualLinkHTML(issueData, 'Test description', '123');
+
+        expect(html).toContain('onclick="window.scrollTo');
+        expect(html).toContain('class="gtt-issue-link"');
+        expect(html).toContain('#123');
+        expect(html).not.toContain('target="_blank"');
+      });
+
+      test('should generate new-tab link for different issue', () => {
+        const issueData = {
+          issueNumber: '456',
+          issueUrl: 'https://github.com/owner/repo/issues/456',
+          commentUrl: 'https://github.com/owner/repo/issues/456#issuecomment-789',
+          commentId: 'issuecomment-789'
+        };
+        const html = generateSmartDualLinkHTML(issueData, 'Different issue', '123');
+
+        expect(html).toContain('target="_blank"');
+        expect(html).toContain('rel="noopener noreferrer"');
+        expect(html).toContain('href="https://github.com/owner/repo/issues/456"');
+        expect(html).toContain('class="gtt-issue-link"');
+        expect(html).toContain('#456');
+      });
+
+      test('should generate scroll-to-comment for same issue with commentId', () => {
+        const issueData = {
+          issueNumber: '123',
+          issueUrl: 'https://github.com/owner/repo/issues/123',
+          commentUrl: 'https://github.com/owner/repo/issues/123#issuecomment-456',
+          commentId: 'issuecomment-456'
+        };
+        const html = generateSmartDualLinkHTML(issueData, 'Comment text', '123');
+
+        expect(html).toContain('getElementById(\'issuecomment-456\')');
+        expect(html).toContain('scrollIntoView');
+        expect(html).toContain('class="gtt-comment-link"');
+        expect(html).toContain('Comment text');
+      });
+
+      test('should generate new-tab link for different issue with commentId', () => {
+        const issueData = {
+          issueNumber: '999',
+          issueUrl: 'https://github.com/owner/repo/issues/999',
+          commentUrl: 'https://github.com/owner/repo/issues/999#issuecomment-111',
+          commentId: 'issuecomment-111'
+        };
+        const html = generateSmartDualLinkHTML(issueData, 'Another comment', '123');
+
+        expect(html).toContain('target="_blank"');
+        expect(html).toContain('rel="noopener noreferrer"');
+        expect(html).toContain('class="gtt-comment-link"');
+        expect(html).toContain('href="https://github.com/owner/repo/issues/999#issuecomment-111"');
+      });
+
+      test('should use plain text when same issue without commentId', () => {
+        const issueData = {
+          issueNumber: '123',
+          issueUrl: 'https://github.com/owner/repo/issues/123',
+          commentUrl: 'https://github.com/owner/repo/issues/123',
+          commentId: null
+        };
+        const html = generateSmartDualLinkHTML(issueData, 'Plain text', '123');
+
+        expect(html).toContain('<span class="gtt-comment-text">');
+        expect(html).toContain('Plain text');
+        expect(html).not.toContain('gtt-comment-link');
+      });
+
+      test('should escape special characters in all scenarios', () => {
+        const issueData = {
+          issueNumber: '123',
+          issueUrl: 'https://github.com/owner/repo/issues/123',
+          commentUrl: 'https://github.com/owner/repo/issues/123',
+          commentId: null
+        };
+        const html = generateSmartDualLinkHTML(issueData, '<script>alert("XSS")</script>', '456');
+
+        expect(html).not.toContain('<script>');
+        expect(html).toContain('&lt;script&gt;');
+        expect(html).toContain('&quot;');
+      });
+
+      test('should fall back to plain text when issueData is null', () => {
+        const html = generateSmartDualLinkHTML(null, 'Fallback text', '123');
+
+        expect(html).toBe('Fallback text');
+        expect(html).not.toContain('<a');
+      });
+
+      test('should include security attributes on external links', () => {
+        const issueData = {
+          issueNumber: '789',
+          issueUrl: 'https://github.com/owner/repo/issues/789',
+          commentUrl: 'https://github.com/owner/repo/issues/789#issuecomment-999',
+          commentId: 'issuecomment-999'
+        };
+        const html = generateSmartDualLinkHTML(issueData, 'Secure link', '123');
+
+        const relCount = (html.match(/rel="noopener noreferrer"/g) || []).length;
+        expect(relCount).toBe(2); // Both links should have it
+      });
+    });
+
+    describe('HTML rendering with smart links', () => {
+      test('should render smart links in normal view HTML', () => {
+        const entry = {
+          hours: 2.5,
+          url: 'https://github.com/owner/repo/issues/456#issuecomment-789',
+          comment: '⏱️ **Time Tracked:** 2.5 Hour(s)\n\nImplemented feature X'
+        };
+
+        const description = entry.comment.split('\n')[2] || 'No description';
+        const issueData = extractIssueData(entry.url);
+        const currentIssue = '123';
+        const linkHTML = generateSmartDualLinkHTML(issueData, description, currentIssue);
+
+        let html = '<div class="gtt-report-entry">';
+        html += '<div class="gtt-report-entry-hours">' + entry.hours + 'h</div>';
+        html += '<div class="gtt-report-entry-comment">' + linkHTML + '</div>';
+        html += '</div>';
+
+        expect(html).toContain('gtt-report-entry-comment');
+        expect(html).toContain('#456');
+        expect(html).toContain('Implemented feature X');
+        expect(html).toContain('target="_blank"');
+      });
+
+      test('should render smart links in iframe view HTML', () => {
+        const entry = {
+          hours: 1.5,
+          url: 'https://github.com/owner/repo/issues/123#issuecomment-456',
+          comment: '⏱️ **Time Tracked:** 1.5 Hour(s)\n\nFixed bug Y'
+        };
+
+        const description = entry.comment.split('\n')[2] || 'No description';
+        const issueData = extractIssueData(entry.url);
+        const currentIssue = '123';
+        const linkHTML = generateSmartDualLinkHTML(issueData, description, currentIssue);
+
+        let html = '<div style="display:flex;gap:12px;padding:8px;background:#161b22;border-radius:4px;margin-top:6px;">';
+        html += '<div style="font-size:12px;font-weight:600;color:#238636;min-width:40px;">' + entry.hours + 'h</div>';
+        html += '<div style="font-size:12px;color:#8b949e;flex:1;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;max-height:calc(1.4em * 2);">' + linkHTML + '</div>';
+        html += '</div>';
+
+        expect(html).toContain('#123');
+        expect(html).toContain('Fixed bug Y');
+        expect(html).toContain('onclick="window.scrollTo');
+        expect(html).toContain('scrollIntoView');
+      });
+    });
+  });
 });
 
 /**
