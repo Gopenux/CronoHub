@@ -132,8 +132,9 @@
      * Fetches all CronoHub comments from a user in an organization within a date range
      *
      * OPTIMIZATION STRATEGY:
-     * - Filters by username, org, date range AND "Time Tracked" text in a single API call
+     * - Filters by username, org, issue updated date AND "Time Tracked" text in a single API call
      * - Only returns issues that contain CronoHub time tracking comments
+     * - Uses issue updated date as proxy for comment activity (GitHub API doesn't support comment date filtering)
      * - Reduces API calls by 90-95% compared to fetching all user comments
      *
      * @param {string} username - GitHub username
@@ -153,8 +154,8 @@
 
       // OPTIMIZATION: Add "Time Tracked" to filter only CronoHub comments
       // This dramatically reduces the number of issues returned (only those with time tracking)
-      // Note: GitHub search uses created date for comments, not updated
-      var query = 'type:issue commenter:' + username + ' org:' + org + ' "Time Tracked" created:' + startDate + '..' + endDate;
+      // Note: GitHub search API doesn't support filtering by comment creation date, so we use issue updated date as a proxy
+      var query = 'type:issue commenter:' + username + ' org:' + org + ' "Time Tracked" updated:' + startDate + '..' + endDate;
       var url = 'https://api.github.com/search/issues?q=' + encodeURIComponent(query) + '&per_page=100&sort=updated&order=desc';
 
       return fetch(url, {
