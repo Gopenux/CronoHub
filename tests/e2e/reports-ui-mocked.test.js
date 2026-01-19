@@ -427,10 +427,36 @@ describe('Reports UI Tests (Mocked API)', () => {
       await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
 
       const extractionResult = await page.evaluate(() => {
-        // Simulate comment parsing
+        // Use the extractDescription function from content.js
         const fullComment = '⏱️ **Time Tracked:** 1.5 Hour(s)\n\nImplemented authentication feature\n\n---\n<sub>**Logged with CronoHub** by Gopenux AI Team</sub>';
-        const lines = fullComment.split('\n');
-        const description = lines[2] || 'No description';
+
+        // Extract description using the new extractDescription function
+        function extractDescription(comment) {
+          if (!comment) return 'No description';
+          const lines = comment.split('\n');
+          const descriptionLines = [];
+          let startCollecting = false;
+
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (line.match(/⏱️\s*\*\*Time Tracked:\*\*/)) {
+              startCollecting = true;
+              continue;
+            }
+            if (line.trim() === '---') {
+              break;
+            }
+            if (startCollecting) {
+              if (descriptionLines.length > 0 || line.trim() !== '') {
+                descriptionLines.push(line);
+              }
+            }
+          }
+          const description = descriptionLines.join('\n').trim();
+          return description || 'No description';
+        }
+
+        const description = extractDescription(fullComment);
 
         const container = document.createElement('div');
         document.body.appendChild(container);

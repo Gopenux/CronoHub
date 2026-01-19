@@ -457,7 +457,10 @@ console.log('CronoHub: Content script loaded');
     state.isLoading = true;
     updateIframeSubmitButton(true);
 
-    postTimeComment(hours, description.trim())
+    // Clean description: remove leading/trailing whitespace, newlines, and tabs
+    var cleanDescription = description.replace(/^[\s\n\r\t]+|[\s\n\r\t]+$/g, '').trim();
+
+    postTimeComment(hours, cleanDescription)
       .then(function(result) {
         console.log('CronoHub: Success', result);
 
@@ -1159,7 +1162,7 @@ console.log('CronoHub: Content script loaded');
       html += '</div>';
 
       dayEntries.forEach(function(entry) {
-        var description = entry.comment.split('\n')[2] || 'No description';
+        var description = extractDescription(entry.comment);
         var issueData = extractIssueData(entry.url);
         var currentIssue = getCurrentIssueNumber();
         var linkHTML = generateSmartDualLinkHTML(issueData, description, currentIssue);
@@ -1203,7 +1206,7 @@ console.log('CronoHub: Content script loaded');
       html += '</div>';
 
       dayEntries.forEach(function(entry) {
-        var description = entry.comment.split('\n')[2] || 'No description';
+        var description = extractDescription(entry.comment);
         var issueData = extractIssueData(entry.url);
         var currentIssue = getCurrentIssueNumber();
         var linkHTML = generateSmartDualLinkHTML(issueData, description, currentIssue);
@@ -1351,7 +1354,8 @@ console.log('CronoHub: Content script loaded');
     var hours = parseFloat(hoursValue);
     
     var descValue = descInput ? (descInput.value !== undefined ? descInput.value : descInput.textContent) : '';
-    var description = descValue.trim();
+    // Clean description: remove leading/trailing whitespace, newlines, and tabs
+    var description = descValue.replace(/^[\s\n\r\t]+|[\s\n\r\t]+$/g, '').trim();
 
     console.log('CronoHub: Data', { hours: hours, description: description });
 
@@ -1479,6 +1483,72 @@ console.log('CronoHub: Content script loaded');
     var div = document.createElement('div');
     div.textContent = text || '';
     return div.innerHTML;
+  }
+
+  /**
+   * Capitalizes the first letter of a string
+   * @param {string} str - The string to capitalize
+   * @returns {string} The string with the first letter capitalized
+   */
+  function capitalizeFirstLetter(str) {
+    if (!str || str.length === 0) return str;
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  /**
+   * Extracts the description from a CronoHub comment
+   * Format: ⏱️ **Time Tracked:** X Hour(s)\n\n{description}\n\n---\n...
+   * Cleans bullet points and special characters for display (max 2 lines)
+   * @param {string} comment - The full comment text
+   * @returns {string} The extracted description or 'No description'
+   */
+  function extractDescription(comment) {
+    if (!comment) return 'No description';
+
+    var lines = comment.split('\n');
+
+    // Find the start: line after "Time Tracked:" header (skip line 0 and empty line 1)
+    // Find the end: line before "---" separator
+    var descriptionLines = [];
+    var startCollecting = false;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+
+      // Skip the time tracked header
+      if (line.match(/⏱️\s*\*\*Time Tracked:\*\*/)) {
+        startCollecting = true;
+        continue;
+      }
+
+      // Stop when we hit the separator
+      if (line.trim() === '---') {
+        break;
+      }
+
+      // Collect lines after header
+      if (startCollecting) {
+        // Skip leading empty lines but keep empty lines within description
+        if (descriptionLines.length > 0 || line.trim() !== '') {
+          descriptionLines.push(line);
+        }
+      }
+    }
+
+    // Join and clean
+    var description = descriptionLines.join(' ').trim();
+
+    // Clean bullet points and special markdown characters
+    description = description
+      .replace(/^[•\-*]\s+/gm, '') // Remove bullet points at start of lines
+      .replace(/[•\-*]\s+/g, ' ')  // Replace inline bullets with space
+      .replace(/\s+/g, ' ')         // Normalize multiple spaces to single space
+      .trim();
+
+    // Capitalize first letter
+    description = capitalizeFirstLetter(description);
+
+    return description || 'No description';
   }
 
   // Setup storage change listener with context validation
