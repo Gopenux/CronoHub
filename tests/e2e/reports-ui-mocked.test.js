@@ -11,7 +11,6 @@ const path = require('path');
 describe('Reports UI Tests (Mocked API)', () => {
   let browser;
   let page;
-  let extensionId;
 
   jest.setTimeout(60000);
 
@@ -19,7 +18,6 @@ describe('Reports UI Tests (Mocked API)', () => {
     const launch = await launchBrowserWithExtension();
     browser = launch.browser;
     page = launch.page;
-    extensionId = launch.extensionId;
   });
 
   afterAll(async () => {
@@ -342,17 +340,7 @@ describe('Reports UI Tests (Mocked API)', () => {
         const container = document.createElement('div');
         document.body.appendChild(container);
 
-        // Simulate report data with long description
-        const mockComments = [
-          {
-            created_at: '2026-01-19T10:00:00Z',
-            body: '⏱️ **Time Tracked:** 2.5 Hours\n\nThis is a very long description that should be truncated after two lines to maintain UI consistency and avoid overwhelming the user with too much text in the report view',
-            user: { login: 'testuser' },
-            html_url: 'https://github.com/test/repo/issues/1#comment-1'
-          }
-        ];
-
-        // Render the report entry
+        // Render the report entry with long description
         container.innerHTML = `
           <div class="gtt-report-entry">
             <div class="gtt-report-entry-hours">2.5h</div>
@@ -463,6 +451,227 @@ describe('Reports UI Tests (Mocked API)', () => {
 
       expect(extractionResult.extracted).toBe('Implemented authentication feature');
       expect(extractionResult.rendered).toBe('Implemented authentication feature');
+    });
+  });
+
+  describe('Smart Dual Clickable Links in Reports', () => {
+    test('should detect current issue number from URL', async () => {
+      // Navigate to a URL with issue number
+      await page.goto('https://github.com/owner/repo/issues/42', { waitUntil: 'domcontentloaded' });
+      await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
+
+      const issueNumber = await page.evaluate(() => {
+        return window.getCurrentIssueNumber();
+      });
+
+      expect(issueNumber).toBe('42');
+    });
+
+    test('should render scroll links for same issue', async () => {
+      await page.goto('https://github.com/owner/repo/issues/1', { waitUntil: 'domcontentloaded' });
+      await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
+
+      const linkHTML = await page.evaluate(() => {
+        const currentIssue = window.getCurrentIssueNumber();
+
+        const issueData = {
+          issueNumber: '1',
+          issueUrl: 'https://github.com/owner/repo/issues/1',
+          commentUrl: 'https://github.com/owner/repo/issues/1#issuecomment-123',
+          commentId: 'issuecomment-123'
+        };
+
+        return window.generateSmartDualLinkHTML(issueData, 'Test description', currentIssue);
+      });
+
+      // Should contain scroll onclick handlers, not target="_blank"
+      expect(linkHTML).toContain('onclick="window.scrollTo');
+      expect(linkHTML).toContain('onclick="var el=document.getElementById');
+      expect(linkHTML).not.toContain('target="_blank"');
+      expect(linkHTML).toContain('class="gtt-issue-link"');
+      expect(linkHTML).toContain('class="gtt-comment-link"');
+    });
+
+    test('should render new-tab links for different issue', async () => {
+      await page.goto('https://github.com/owner/repo/issues/1', { waitUntil: 'domcontentloaded' });
+      await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
+
+      const linkHTML = await page.evaluate(() => {
+        const currentIssue = window.getCurrentIssueNumber();
+
+        const issueData = {
+          issueNumber: '42',
+          issueUrl: 'https://github.com/owner/repo/issues/42',
+          commentUrl: 'https://github.com/owner/repo/issues/42#issuecomment-456',
+          commentId: 'issuecomment-456'
+        };
+
+        return window.generateSmartDualLinkHTML(issueData, 'Another description', currentIssue);
+      });
+
+      // Should contain target="_blank" links, not onclick handlers
+      expect(linkHTML).toContain('target="_blank"');
+      expect(linkHTML).toContain('rel="noopener noreferrer"');
+      expect(linkHTML).not.toContain('onclick="window.scrollTo');
+      expect(linkHTML).toContain('class="gtt-issue-link"');
+      expect(linkHTML).toContain('class="gtt-comment-link"');
+    });
+
+    test('should execute scroll to top for same issue', async () => {
+      await page.goto('https://github.com/owner/repo/issues/1', { waitUntil: 'domcontentloaded' });
+      await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
+
+      const scrollExecuted = await page.evaluate(() => {
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+
+        const currentIssue = window.getCurrentIssueNumber();
+
+        const issueData = {
+          issueNumber: '1',
+          issueUrl: 'https://github.com/owner/repo/issues/1',
+          commentUrl: 'https://github.com/owner/repo/issues/1#issuecomment-123',
+          commentId: 'issuecomment-123'
+        };
+
+        const linkHTML = window.generateSmartDualLinkHTML(issueData, 'Test', currentIssue);
+        container.innerHTML = linkHTML;
+
+        // Verify the onclick handler exists
+        const issueLink = container.querySelector('.gtt-issue-link');
+        return {
+          hasOnclick: issueLink?.getAttribute('onclick')?.includes('window.scrollTo'),
+          linkExists: !!issueLink
+        };
+      });
+
+      expect(scrollExecuted.linkExists).toBe(true);
+      expect(scrollExecuted.hasOnclick).toBe(true);
+    });
+
+    test('should execute scroll to comment for same issue with commentId', async () => {
+      await page.goto('https://github.com/owner/repo/issues/1', { waitUntil: 'domcontentloaded' });
+      await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
+
+      const commentScrollSetup = await page.evaluate(() => {
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+
+        // Create the comment element that would be scrolled to
+        const commentElement = document.createElement('div');
+        commentElement.id = 'issuecomment-123';
+        document.body.appendChild(commentElement);
+
+        const currentIssue = window.getCurrentIssueNumber();
+
+        const issueData = {
+          issueNumber: '1',
+          issueUrl: 'https://github.com/owner/repo/issues/1',
+          commentUrl: 'https://github.com/owner/repo/issues/1#issuecomment-123',
+          commentId: 'issuecomment-123'
+        };
+
+        const linkHTML = window.generateSmartDualLinkHTML(issueData, 'Description', currentIssue);
+        container.innerHTML = linkHTML;
+
+        const descLink = container.querySelector('.gtt-comment-link');
+        return {
+          hasOnclick: descLink?.getAttribute('onclick')?.includes('scrollIntoView'),
+          targetId: descLink?.getAttribute('onclick')?.includes('issuecomment-123'),
+          linkExists: !!descLink
+        };
+      });
+
+      expect(commentScrollSetup.linkExists).toBe(true);
+      expect(commentScrollSetup.hasOnclick).toBe(true);
+      expect(commentScrollSetup.targetId).toBe(true);
+    });
+
+    test('should open new tab for different issue', async () => {
+      await page.goto('https://github.com/owner/repo/issues/1', { waitUntil: 'domcontentloaded' });
+      await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
+
+      const newTabLink = await page.evaluate(() => {
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+
+        const currentIssue = window.getCurrentIssueNumber();
+
+        const issueData = {
+          issueNumber: '42',
+          issueUrl: 'https://github.com/owner/repo/issues/42',
+          commentUrl: 'https://github.com/owner/repo/issues/42#issuecomment-456',
+          commentId: 'issuecomment-456'
+        };
+
+        const linkHTML = window.generateSmartDualLinkHTML(issueData, 'Different issue', currentIssue);
+        container.innerHTML = linkHTML;
+
+        const issueLink = container.querySelector('.gtt-issue-link');
+        const descLink = container.querySelector('.gtt-comment-link');
+
+        return {
+          issueLinkHasTarget: issueLink?.getAttribute('target') === '_blank',
+          descLinkHasTarget: descLink?.getAttribute('target') === '_blank',
+          issueLinkHasRel: issueLink?.getAttribute('rel') === 'noopener noreferrer',
+          descLinkHasRel: descLink?.getAttribute('rel') === 'noopener noreferrer'
+        };
+      });
+
+      expect(newTabLink.issueLinkHasTarget).toBe(true);
+      expect(newTabLink.descLinkHasTarget).toBe(true);
+      expect(newTabLink.issueLinkHasRel).toBe(true);
+      expect(newTabLink.descLinkHasRel).toBe(true);
+    });
+
+    test('should apply correct CSS classes to links', async () => {
+      await page.goto('https://github.com/owner/repo/issues/1', { waitUntil: 'domcontentloaded' });
+      await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
+
+      const cssClasses = await page.evaluate(() => {
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+
+        const currentIssue = window.getCurrentIssueNumber();
+
+        const issueData = {
+          issueNumber: '42',
+          issueUrl: 'https://github.com/owner/repo/issues/42',
+          commentUrl: 'https://github.com/owner/repo/issues/42#issuecomment-456',
+          commentId: 'issuecomment-456'
+        };
+
+        const linkHTML = window.generateSmartDualLinkHTML(issueData, 'Test', currentIssue);
+        container.innerHTML = linkHTML;
+
+        const issueLink = container.querySelector('.gtt-issue-link');
+        const commentLink = container.querySelector('.gtt-comment-link');
+
+        return {
+          issueLink: issueLink?.className,
+          commentLink: commentLink?.className
+        };
+      });
+
+      expect(cssClasses.issueLink).toBe('gtt-issue-link');
+      expect(cssClasses.commentLink).toBe('gtt-comment-link');
+    });
+
+    test('should handle invalid URLs gracefully', async () => {
+      await page.goto('https://github.com/owner/repo/issues/1', { waitUntil: 'domcontentloaded' });
+      await page.addScriptTag({ path: path.join(__dirname, '../../content.js') });
+
+      const fallbackHTML = await page.evaluate(() => {
+        const currentIssue = window.getCurrentIssueNumber();
+
+        // Pass null issueData to simulate invalid URL
+        return window.generateSmartDualLinkHTML(null, 'Fallback description', currentIssue);
+      });
+
+      // Should return plain escaped text without links
+      expect(fallbackHTML).toBe('Fallback description');
+      expect(fallbackHTML).not.toContain('<a ');
+      expect(fallbackHTML).not.toContain('href');
     });
   });
 });

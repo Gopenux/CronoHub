@@ -10,7 +10,6 @@ const GitHubAPIMocks = require('../mocks/github-api-mocks');
  */
 describe('Popup Authentication', () => {
   let mockChrome;
-  let mockFetch;
   let mockDocument;
   let elements;
 
@@ -355,7 +354,7 @@ describe('Popup Authentication', () => {
 
     test('should handle storage errors', async () => {
       // Arrange
-      mockChrome.storage.local.set.mockImplementationOnce((data, callback) => {
+      mockChrome.storage.local.set.mockImplementationOnce(() => {
         throw new Error('Storage quota exceeded');
       });
 

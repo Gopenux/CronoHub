@@ -11,7 +11,7 @@ console.log('CronoHub: Content script loaded');
   function isExtensionContextValid() {
     try {
       return !!(chrome && chrome.runtime && chrome.runtime.id);
-    } catch (e) {
+    } catch {
       return false;
     }
   }
@@ -1028,9 +1028,9 @@ console.log('CronoHub: Content script loaded');
     Promise.all(fetchPromises)
       .then(function(allData) {
         if (selectedOptions.length === 1) {
-          displayUserReportInIframe(allData[0].username, allData[0].comments, resultsDiv, iframeDoc);
+          displayUserReportInIframe(allData[0].username, allData[0].comments, resultsDiv);
         } else {
-          displayAllCollaboratorsReportInIframe(allData, resultsDiv, iframeDoc);
+          displayAllCollaboratorsReportInIframe(allData, resultsDiv);
         }
       })
       .catch(function(error) {
@@ -1042,6 +1042,98 @@ console.log('CronoHub: Content script loaded');
         btn.disabled = false;
         btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>Generate Report';
       });
+  }
+
+  /**
+   * Gets the current issue number from the page context
+   * @returns {string|null} - Current issue number or null if not in an issue page
+   */
+  function getCurrentIssueNumber() {
+    // Method 1: From URL (most reliable)
+    var urlMatch = window.location.pathname.match(/\/issues\/(\d+)/);
+    if (urlMatch) {
+      return urlMatch[1];
+    }
+
+    // Method 2: From state object (if available)
+    if (typeof state !== 'undefined' && state.issueData && state.issueData.number) {
+      return String(state.issueData.number);
+    }
+
+    return null;
+  }
+
+  /**
+   * Extracts issue number, issue URL, comment URL, and comment ID from GitHub comment URL
+   * @param {string} commentUrl - Full GitHub comment URL
+   * @returns {Object|null} - Object with issueNumber, issueUrl, commentUrl, commentId or null
+   */
+  function extractIssueData(commentUrl) {
+    if (!commentUrl) return null;
+
+    var issueMatch = commentUrl.match(/\/issues\/(\d+)/);
+    if (!issueMatch) return null;
+
+    var issueNumber = issueMatch[1];
+    var issueUrl = commentUrl.replace(/#issuecomment-\d+$/, '');
+
+    // Extract comment ID if present
+    var commentIdMatch = commentUrl.match(/#(issuecomment-\d+)$/);
+    var commentId = commentIdMatch ? commentIdMatch[1] : null;
+
+    return {
+      issueNumber: issueNumber,
+      issueUrl: issueUrl,
+      commentUrl: commentUrl,
+      commentId: commentId
+    };
+  }
+
+  /**
+   * Generates HTML with smart navigation based on current issue context
+   * @param {Object} issueData - Object with issueNumber, issueUrl, commentUrl, commentId
+   * @param {string} description - Time entry description text
+   * @param {string} currentIssueNumber - Current issue number from page context
+   * @returns {string} - HTML string with context-aware navigation
+   */
+  function generateSmartDualLinkHTML(issueData, description, currentIssueNumber) {
+    if (!issueData || !issueData.issueNumber) {
+      // Fallback to plain text if no issue data
+      return escapeHtml(description);
+    }
+
+    var isSameIssue = (issueData.issueNumber === currentIssueNumber);
+    var issueLink, descriptionLink;
+
+    // Generate issue number link
+    if (isSameIssue) {
+      // Same issue: scroll to top
+      issueLink = '<a href="#" onclick="window.scrollTo({top:0,behavior:\'smooth\'});return false;" class="gtt-issue-link">#' +
+                  escapeHtml(issueData.issueNumber) + '</a>';
+    } else {
+      // Different issue: open in new tab
+      issueLink = '<a href="' + escapeHtml(issueData.issueUrl) +
+                  '" target="_blank" rel="noopener noreferrer" class="gtt-issue-link">#' +
+                  escapeHtml(issueData.issueNumber) + '</a>';
+    }
+
+    // Generate description link
+    if (isSameIssue && issueData.commentId) {
+      // Same issue with comment ID: scroll to comment
+      descriptionLink = '<a href="#' + escapeHtml(issueData.commentId) + '" onclick="var el=document.getElementById(\'' +
+                        issueData.commentId + '\');if(el){el.scrollIntoView({behavior:\'smooth\',block:\'center\'});return false;}return true;" class="gtt-comment-link">' +
+                        escapeHtml(description) + '</a>';
+    } else if (!isSameIssue && issueData.commentUrl) {
+      // Different issue: open in new tab
+      descriptionLink = '<a href="' + escapeHtml(issueData.commentUrl) +
+                        '" target="_blank" rel="noopener noreferrer" class="gtt-comment-link">' +
+                        escapeHtml(description) + '</a>';
+    } else {
+      // Same issue but no comment ID: plain text
+      descriptionLink = '<span class="gtt-comment-text">' + escapeHtml(description) + '</span>';
+    }
+
+    return issueLink + ' - ' + descriptionLink;
   }
 
   function displayUserReport(username, comments, container) {
@@ -1067,9 +1159,14 @@ console.log('CronoHub: Content script loaded');
       html += '</div>';
 
       dayEntries.forEach(function(entry) {
+        var description = entry.comment.split('\n')[2] || 'No description';
+        var issueData = extractIssueData(entry.url);
+        var currentIssue = getCurrentIssueNumber();
+        var linkHTML = generateSmartDualLinkHTML(issueData, description, currentIssue);
+
         html += '<div class="gtt-report-entry">';
         html += '<div class="gtt-report-entry-hours">' + entry.hours + 'h</div>';
-        html += '<div class="gtt-report-entry-comment">' + escapeHtml(entry.comment.split('\n')[2] || 'No description') + '</div>';
+        html += '<div class="gtt-report-entry-comment">' + linkHTML + '</div>';
         html += '</div>';
       });
 
@@ -1079,7 +1176,7 @@ console.log('CronoHub: Content script loaded');
     container.innerHTML = html;
   }
 
-  function displayUserReportInIframe(username, comments, container, iframeDoc) {
+  function displayUserReportInIframe(username, comments, container) {
     if (comments.length === 0) {
       container.innerHTML = '<div style="padding:20px;text-align:center;color:#8b949e;">No time entries found for this period</div>';
       return;
@@ -1106,10 +1203,14 @@ console.log('CronoHub: Content script loaded');
       html += '</div>';
 
       dayEntries.forEach(function(entry) {
-        var desc = entry.comment.split('\n')[2] || 'No description';
+        var description = entry.comment.split('\n')[2] || 'No description';
+        var issueData = extractIssueData(entry.url);
+        var currentIssue = getCurrentIssueNumber();
+        var linkHTML = generateSmartDualLinkHTML(issueData, description, currentIssue);
+
         html += '<div style="display:flex;gap:12px;padding:8px;background:#161b22;border-radius:4px;margin-top:6px;">';
         html += '<div style="font-size:12px;font-weight:600;color:#238636;min-width:40px;">' + entry.hours + 'h</div>';
-        html += '<div style="font-size:12px;color:#8b949e;flex:1;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;max-height:calc(1.4em * 2);">' + desc + '</div>';
+        html += '<div style="font-size:12px;color:#8b949e;flex:1;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.4;max-height:calc(1.4em * 2);">' + linkHTML + '</div>';
         html += '</div>';
       });
 
@@ -1151,7 +1252,7 @@ console.log('CronoHub: Content script loaded');
     container.innerHTML = html;
   }
 
-  function displayAllCollaboratorsReportInIframe(allData, container, iframeDoc) {
+  function displayAllCollaboratorsReportInIframe(allData, container) {
     var hasData = allData.some(function(userData) { return userData.comments.length > 0; });
 
     if (!hasData) {
@@ -1395,5 +1496,12 @@ console.log('CronoHub: Content script loaded');
     } catch (error) {
       console.error('CronoHub: Failed to setup storage listener', error);
     }
+  }
+
+  // Expose functions for testing
+  if (typeof window !== 'undefined') {
+    window.getCurrentIssueNumber = getCurrentIssueNumber;
+    window.extractIssueData = extractIssueData;
+    window.generateSmartDualLinkHTML = generateSmartDualLinkHTML;
   }
 })();

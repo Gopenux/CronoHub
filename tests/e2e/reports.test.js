@@ -11,7 +11,6 @@ const path = require('path');
 describe('Reports Functionality E2E Tests', () => {
   let browser;
   let page;
-  let extensionId;
 
   jest.setTimeout(60000);
 
@@ -19,7 +18,6 @@ describe('Reports Functionality E2E Tests', () => {
     const launch = await launchBrowserWithExtension();
     browser = launch.browser;
     page = launch.page;
-    extensionId = launch.extensionId;
   });
 
   afterAll(async () => {

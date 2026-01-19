@@ -742,6 +742,54 @@
   max-height: calc(1.4em * 2);
 }
 
+/* Issue number link in time entries */
+.gtt-issue-link {
+  color: var(--gtt-accent-blue);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 150ms ease;
+  cursor: pointer;
+}
+
+.gtt-issue-link:hover {
+  color: #79c0ff;
+  text-decoration: underline;
+}
+
+.gtt-issue-link:visited {
+  color: #a371f7;
+}
+
+.gtt-issue-link:active {
+  color: #58a6ff;
+}
+
+/* Comment description link in time entries */
+.gtt-comment-link {
+  color: var(--gtt-text-secondary);
+  text-decoration: none;
+  transition: color 150ms ease;
+  cursor: pointer;
+}
+
+.gtt-comment-link:hover {
+  color: var(--gtt-text-primary);
+  text-decoration: underline;
+}
+
+.gtt-comment-link:visited {
+  color: var(--gtt-text-muted);
+}
+
+.gtt-comment-link:active {
+  color: var(--gtt-text-primary);
+}
+
+/* Plain text fallback for descriptions without links */
+.gtt-comment-text {
+  color: var(--gtt-text-secondary);
+}
+
 .gtt-report-user {
   padding: 10px 14px;
   background: var(--gtt-bg-primary);
