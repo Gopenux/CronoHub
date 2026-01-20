@@ -66,7 +66,8 @@ describe('Manifest V3 Validation', () => {
 
   test('content_scripts should match GitHub paths', () => {
     const contentScript = manifest.content_scripts[0];
-    expect(contentScript.matches).toContain('https://github.com/*/issues/*');
+    // Updated to match all GitHub repository pages for SPA navigation
+    expect(contentScript.matches).toContain('https://github.com/*/*');
     expect(contentScript.matches).toContain('https://github.com/orgs/*/projects/*');
   });
 
