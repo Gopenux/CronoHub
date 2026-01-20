@@ -43,9 +43,13 @@ console.log('CronoHub: Content script loaded');
       createPanel();
       detectIssue();
 
+      // Setup navigation listeners for SPA routing
+      setupNavigationListeners();
+
+      // Fallback polling (reduced frequency since we have navigation listeners)
       setInterval(function() {
         detectIssue();
-      }, 1000);
+      }, 2000);
 
       console.log('CronoHub: Initialized');
     }).catch(function(error) {
@@ -54,9 +58,112 @@ console.log('CronoHub: Content script loaded');
     });
   }
 
+  /**
+   * Setup listeners for SPA navigation (GitHub uses pushState/replaceState)
+   * Detects URL changes and waits for DOM to be ready before detecting issue
+   */
+  function setupNavigationListeners() {
+    var lastUrl = window.location.href;
+    var debounceTimer = null;
+
+    // Intercept pushState and replaceState
+    var originalPushState = history.pushState;
+    var originalReplaceState = history.replaceState;
+
+    history.pushState = function() {
+      originalPushState.apply(this, arguments);
+      onUrlChange();
+    };
+
+    history.replaceState = function() {
+      originalReplaceState.apply(this, arguments);
+      onUrlChange();
+    };
+
+    // Listen for popstate (back/forward navigation)
+    window.addEventListener('popstate', onUrlChange);
+
+    // Listen for GitHub's own turbo:load event (if using Turbo)
+    document.addEventListener('turbo:load', onUrlChange);
+
+    // Listen for pjax events (GitHub's older SPA framework)
+    document.addEventListener('pjax:end', onUrlChange);
+
+    // Aggressive polling to detect URL changes
+    setInterval(function() {
+      if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        onUrlChange();
+      }
+    }, 100);
+
+    // Mutation observer to detect DOM changes after navigation
+    var observer = new MutationObserver(function() {
+      if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        onUrlChange();
+      }
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    function onUrlChange() {
+      // Debounce to avoid multiple rapid calls
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+
+      debounceTimer = setTimeout(function() {
+        waitForIssueDOM(0);
+      }, 50);
+    }
+
+    /**
+     * Waits for issue DOM elements to be ready with exponential backoff
+     * @param {number} retryCount - Current retry attempt
+     */
+    function waitForIssueDOM(retryCount) {
+      var maxRetries = 5;
+      var baseDelay = 50; // Start with 50ms
+      var backoffFactor = 1.6;
+
+      if (retryCount >= maxRetries) {
+        detectIssue();
+        return;
+      }
+
+      // Check if we're on an issue page by URL
+      var isIssuePage = /\/issues\/\d+/.test(window.location.pathname);
+
+      if (!isIssuePage) {
+        // Not an issue page, detect immediately
+        detectIssue();
+        return;
+      }
+
+      // Check if the critical DOM elements are ready
+      var titleElement = document.querySelector('.js-issue-title, .markdown-title');
+
+      if (titleElement) {
+        // DOM is ready, detect issue
+        detectIssue();
+      } else {
+        // DOM not ready, retry with exponential backoff
+        var delay = baseDelay * Math.pow(backoffFactor, retryCount);
+
+        setTimeout(function() {
+          waitForIssueDOM(retryCount + 1);
+        }, delay);
+      }
+    }
+  }
+
   function detectIssue() {
     var newIssueData = getIssueData();
-    
+
     if (newIssueData) {
       if (!state.issueData || state.issueData.number !== newIssueData.number) {
         console.log('CronoHub: Issue detected', newIssueData);
