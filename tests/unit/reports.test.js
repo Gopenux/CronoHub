@@ -113,6 +113,90 @@ describe('CronoHub Reports Module', () => {
     });
   });
 
+  describe('localDateToUTC', () => {
+    test('should convert local date to UTC timestamp for start of day', () => {
+      const result = CronoHubReports.localDateToUTC('2026-01-19', false);
+
+      // Result should be in ISO format
+      expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+
+      // Should represent start of day in local timezone converted to UTC
+      const date = new Date(result);
+      expect(date).toBeInstanceOf(Date);
+      expect(date.getTime()).toBeGreaterThan(0);
+    });
+
+    test('should convert local date to UTC timestamp for end of day', () => {
+      const result = CronoHubReports.localDateToUTC('2026-01-19', true);
+
+      // Result should be in ISO format
+      expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+
+      // Should represent end of day (23:59:59.999)
+      const date = new Date(result);
+      expect(date).toBeInstanceOf(Date);
+
+      // End of day should be after start of day
+      const startOfDay = CronoHubReports.localDateToUTC('2026-01-19', false);
+      expect(new Date(result).getTime()).toBeGreaterThan(new Date(startOfDay).getTime());
+    });
+
+    test('should handle timezone offsets correctly', () => {
+      // This test validates that local timezone is respected
+      const localDate = '2026-01-19';
+      const utcTimestamp = CronoHubReports.localDateToUTC(localDate, false);
+
+      // Parse the local date manually to verify
+      const expectedDate = new Date(2026, 0, 19, 0, 0, 0, 0);
+      const actualDate = new Date(utcTimestamp);
+
+      // Both should represent the same moment in time
+      expect(actualDate.getTime()).toBe(expectedDate.getTime());
+    });
+  });
+
+  describe('utcToLocalDate', () => {
+    test('should convert UTC date to local date string', () => {
+      const utcDate = new Date('2026-01-19T23:30:00Z');
+      const result = CronoHubReports.utcToLocalDate(utcDate);
+
+      // Result should be in YYYY-MM-DD format
+      expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+      // Should use local timezone for the date
+      const expectedDate = utcDate.getFullYear() + '-' +
+                          String(utcDate.getMonth() + 1).padStart(2, '0') + '-' +
+                          String(utcDate.getDate()).padStart(2, '0');
+      expect(result).toBe(expectedDate);
+    });
+
+    test('should handle date near timezone boundaries', () => {
+      // Test with a UTC date that might be in a different day in local timezone
+      const utcDate = new Date('2026-01-20T04:30:00Z');
+      const result = CronoHubReports.utcToLocalDate(utcDate);
+
+      // Should convert to local date (in Colombia UTC-5, this would be 2026-01-19)
+      expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+      // Verify it uses getFullYear, getMonth, getDate (local methods)
+      const expectedDate = utcDate.getFullYear() + '-' +
+                          String(utcDate.getMonth() + 1).padStart(2, '0') + '-' +
+                          String(utcDate.getDate()).padStart(2, '0');
+      expect(result).toBe(expectedDate);
+    });
+
+    test('should handle dates consistently with localDateToUTC', () => {
+      // Round-trip test: local -> UTC -> local should give same date
+      const originalDate = '2026-01-19';
+      const utcTimestamp = CronoHubReports.localDateToUTC(originalDate, false);
+      const utcDate = new Date(utcTimestamp);
+      const roundTripDate = CronoHubReports.utcToLocalDate(utcDate);
+
+      // Should get back the same local date
+      expect(roundTripDate).toBe(originalDate);
+    });
+  });
+
   describe('aggregateHoursByDate', () => {
     test('should group comments by date', () => {
       const comments = [
@@ -222,6 +306,31 @@ describe('CronoHub Reports Module', () => {
       const end = new Date(range.endDate);
 
       expect(end >= start).toBe(true);
+    });
+
+    test('should use local timezone for date calculation (fix for issue #29)', () => {
+      // This test validates that dates are calculated using local timezone
+      // and not UTC, which was causing wrong dates in timezones west of UTC
+      const range = CronoHubReports.getDefaultDateRange();
+      const now = new Date();
+
+      // Extract today's date using local timezone methods
+      const expectedToday = now.getFullYear() + '-' +
+                           String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                           String(now.getDate()).padStart(2, '0');
+
+      // End date should match today's date in local timezone
+      expect(range.endDate).toBe(expectedToday);
+
+      // Verify that the date doesn't accidentally use UTC
+      const utcDate = now.toISOString().split('T')[0];
+      // In timezones west of UTC, after certain hours these will differ
+      // This test ensures we're using local time, not UTC
+      if (expectedToday !== utcDate) {
+        // If they differ, confirm we're using the local one
+        expect(range.endDate).toBe(expectedToday);
+        expect(range.endDate).not.toBe(utcDate);
+      }
     });
   });
 

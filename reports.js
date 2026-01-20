@@ -7,6 +7,41 @@
 
   var CronoHubReports = {
     /**
+     * Converts a local date (YYYY-MM-DD) to UTC timestamp for API queries
+     * Treats the input date as local timezone start of day (00:00:00 local time)
+     * @param {string} dateStr - Date string in YYYY-MM-DD format (local timezone)
+     * @param {boolean} endOfDay - If true, returns end of day (23:59:59), otherwise start of day (00:00:00)
+     * @returns {string} ISO 8601 timestamp in UTC (YYYY-MM-DDTHH:MM:SSZ)
+     */
+    localDateToUTC: function(dateStr, endOfDay) {
+      // Parse date as local timezone
+      var parts = dateStr.split('-');
+      var year = parseInt(parts[0]);
+      var month = parseInt(parts[1]) - 1; // Month is 0-indexed
+      var day = parseInt(parts[2]);
+
+      // Create date in local timezone
+      var date = endOfDay
+        ? new Date(year, month, day, 23, 59, 59, 999)
+        : new Date(year, month, day, 0, 0, 0, 0);
+
+      // Convert to UTC ISO string
+      return date.toISOString();
+    },
+
+    /**
+     * Converts a UTC timestamp to local date string (YYYY-MM-DD)
+     * @param {Date} date - Date object (typically from API response)
+     * @returns {string} Date string in YYYY-MM-DD format in local timezone
+     */
+    utcToLocalDate: function(date) {
+      var year = date.getFullYear();
+      var month = String(date.getMonth() + 1).padStart(2, '0');
+      var day = String(date.getDate()).padStart(2, '0');
+      return year + '-' + month + '-' + day;
+    },
+
+    /**
      * Validates a date range
      * @param {string} startDate - Start date in YYYY-MM-DD format
      * @param {string} endDate - End date in YYYY-MM-DD format
@@ -226,9 +261,11 @@
       var self = this;
 
       // OPTIMIZATION: Use 'since' parameter to only fetch comments created after startDate
-      // Unfortunately, GitHub API doesn't support 'until' parameter, so we filter on client side
-      // Also, GitHub API doesn't allow filtering by user at this endpoint
-      var sinceParam = startDate + 'T00:00:00Z';
+      // Convert local date to UTC timestamp for API query
+      // Example: User in Colombia (UTC-5) selects 2026-01-19
+      //   - Local: 2026-01-19 00:00:00 (Colombia)
+      //   - UTC: 2026-01-19 05:00:00 (API query)
+      var sinceParam = self.localDateToUTC(startDate, false);
       var url = commentsUrl + '?per_page=100&since=' + encodeURIComponent(sinceParam);
 
       return fetch(url, {
@@ -248,9 +285,9 @@
           return [];
         }
 
-        // Parse dates in UTC to avoid timezone issues
-        var start = new Date(startDate + 'T00:00:00Z');
-        var end = new Date(endDate + 'T23:59:59Z');
+        // Convert local date range to UTC Date objects for comparison
+        var start = new Date(self.localDateToUTC(startDate, false));
+        var end = new Date(self.localDateToUTC(endDate, true));
 
         // Optimized filtering: use reduce to filter and map in single pass
         return comments.reduce(function(acc, comment) {
@@ -270,7 +307,9 @@
           // Only parse comment body if other checks pass (expensive operation)
           var hours = self.parseTimeFromComment(comment.body);
           if (hours > 0) {
-            var dateStr = commentDate.toISOString().split('T')[0];
+            // Convert UTC comment date to local date for display/grouping
+            // This ensures comments are grouped by the user's local date, not UTC date
+            var dateStr = self.utcToLocalDate(commentDate);
             acc.push({
               date: dateStr,
               hours: hours,
@@ -333,6 +372,7 @@
 
     /**
      * Gets default date range (last 7 days)
+     * Uses browser's local timezone to ensure correct date display
      * @returns {object} { startDate, endDate }
      */
     getDefaultDateRange: function() {
@@ -340,9 +380,18 @@
       var start = new Date();
       start.setDate(start.getDate() - 7);
 
+      // Format dates using local timezone instead of UTC to avoid timezone issues
+      // Example: Colombia (UTC-5) at 23:00 should show current day, not next day
+      var formatLocalDate = function(date) {
+        var year = date.getFullYear();
+        var month = String(date.getMonth() + 1).padStart(2, '0');
+        var day = String(date.getDate()).padStart(2, '0');
+        return year + '-' + month + '-' + day;
+      };
+
       return {
-        startDate: start.toISOString().split('T')[0],
-        endDate: end.toISOString().split('T')[0]
+        startDate: formatLocalDate(start),
+        endDate: formatLocalDate(end)
       };
     }
   };
