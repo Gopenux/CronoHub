@@ -57,6 +57,7 @@ We built **CronoHub** – a Chrome extension that integrates seamlessly into Git
 ### ⚡ Lightning Fast Setup
 - Install in under 2 minutes
 - Add your GitHub token
+- **Proactive permission validation**
 - Start tracking immediately
 - No account creation required
 
@@ -123,7 +124,29 @@ When you first install CronoHub, you'll see helpful setup instructions:
 *Extension automatically identifies you using your GitHub account.*
 </div>
 
-### Step 4: Log Time on Any Issue
+### Step 4: Permission Validation (Automatic)
+
+When you open the panel, CronoHub automatically validates your token's permissions:
+
+<div align="center">
+<img src="docs/screenshots/07-access-denied.png" alt="Access Denied State" width="400"/>
+
+*If your token lacks write access, you'll see clear guidance on how to fix it.*
+</div>
+
+**What's validated:**
+- ✅ Repository exists and you have read access
+- ✅ Your token has **write permission** (required to post comments)
+- ✅ No rate limiting or network issues
+
+**If validation fails**, you'll see:
+- 🔴 **Access Denied** - Clear error message explaining the issue
+- 💡 **Possible Solutions** - Step-by-step guidance to fix the problem
+- 🔗 **Quick Links** - Direct links to GitHub settings to regenerate token
+
+This **proactive validation** prevents you from filling out the form only to receive an error on submit.
+
+### Step 5: Log Time on Any Issue
 
 <div align="center">
 <img src="docs/screenshots/02-time-logging.png" alt="Time Logging Panel" width="400"/>
@@ -137,7 +160,7 @@ When you first install CronoHub, you'll see helpful setup instructions:
 >
 > The button will **not** appear on repository home pages, pull requests, or other GitHub pages.
 
-### Step 5: Generate Team Reports
+### Step 6: Generate Team Reports
 
 <div align="center">
 <img src="docs/screenshots/03-reports-interface.png" alt="Reports Interface" width="400"/>
@@ -145,7 +168,7 @@ When you first install CronoHub, you'll see helpful setup instructions:
 *Select team members, choose date range, and generate instant reports.*
 </div>
 
-### Step 6: Analyze Results
+### Step 7: Analyze Results
 
 <div align="center">
 <img src="docs/screenshots/04-report-results.png" alt="Generated Report" width="400"/>

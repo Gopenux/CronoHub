@@ -421,6 +421,22 @@
   }
 }
 
+/* Loading state */
+.gtt-loading-state {
+  padding: 40px 18px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.gtt-loading-text {
+  font-size: 14px;
+  color: var(--gtt-text-secondary);
+  margin: 0;
+}
+
 /* Error state */
 .gtt-error-state {
   padding: 24px 18px;
@@ -438,16 +454,44 @@
   justify-content: center;
 }
 
+.gtt-error-icon.gtt-access-denied {
+  background: rgba(248, 81, 73, 0.15);
+  border: 2px solid rgba(248, 81, 73, 0.3);
+}
+
 .gtt-error-icon svg {
   width: 24px;
   height: 24px;
   color: var(--gtt-accent-red);
 }
 
+.gtt-error-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gtt-accent-red);
+  margin: 0 0 12px 0;
+}
+
 .gtt-error-text {
   font-size: 14px;
   color: var(--gtt-text-secondary);
   margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.gtt-error-details {
+  margin-top: 20px;
+  padding: 16px;
+  background: var(--gtt-bg-tertiary);
+  border-radius: 8px;
+  text-align: left;
+}
+
+.gtt-error-subtitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gtt-text-primary);
+  margin: 0 0 10px 0;
 }
 
 .gtt-instructions {
@@ -469,6 +513,25 @@
 
 .gtt-instructions strong {
   color: var(--gtt-accent-green);
+}
+
+.gtt-instructions code {
+  padding: 2px 6px;
+  background: var(--gtt-bg-primary);
+  border: 1px solid var(--gtt-border);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  color: var(--gtt-text-primary);
+}
+
+.gtt-instructions a {
+  color: var(--gtt-accent-blue);
+  text-decoration: none;
+}
+
+.gtt-instructions a:hover {
+  text-decoration: underline;
 }
 
 .gtt-config-link {

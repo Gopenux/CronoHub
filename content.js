@@ -24,7 +24,9 @@ console.log('CronoHub: Content script loaded');
     panelMode: 'log', // 'log' or 'reports'
     reportsData: null,
     allCollaborators: [],
-    selectedCollaborators: []
+    selectedCollaborators: [],
+    hasRepositoryAccess: null, // null = not checked, true = has access, false = no access
+    permissionError: null // stores the specific permission error message
   };
 
   if (document.readyState === 'loading') {
@@ -138,6 +140,74 @@ console.log('CronoHub: Content script loaded');
     });
   }
 
+  /**
+   * Validates if the user's token has write access to the repository
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @param {string} token - GitHub personal access token
+   * @returns {Promise<{hasAccess: boolean, error: string|null}>}
+   */
+  function validateRepositoryAccess(owner, repo, token) {
+    var url = 'https://api.github.com/repos/' + owner + '/' + repo;
+
+    return fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    }).then(function(response) {
+      if (response.status === 404) {
+        return {
+          hasAccess: false,
+          error: 'Repository not found or you don\'t have read access to it.'
+        };
+      }
+
+      if (response.status === 403) {
+        return response.json().then(function(data) {
+          return {
+            hasAccess: false,
+            error: 'Access forbidden: ' + (data.message || 'Your token doesn\'t have access to this repository.')
+          };
+        }).catch(function() {
+          return {
+            hasAccess: false,
+            error: 'Access forbidden: Your token doesn\'t have access to this repository.'
+          };
+        });
+      }
+
+      if (!response.ok) {
+        return {
+          hasAccess: false,
+          error: 'Error checking permissions: ' + response.status
+        };
+      }
+
+      return response.json().then(function(data) {
+        var hasPushAccess = data.permissions && data.permissions.push === true;
+
+        if (!hasPushAccess) {
+          return {
+            hasAccess: false,
+            error: 'Your token has read-only access. Write permission is required to log time.'
+          };
+        }
+
+        return {
+          hasAccess: true,
+          error: null
+        };
+      });
+    }).catch(function(error) {
+      return {
+        hasAccess: false,
+        error: 'Network error: ' + error.message
+      };
+    });
+  }
+
   function createToggleButton() {
     // Main button - Opens panel
     var btn = document.createElement('button');
@@ -178,8 +248,37 @@ console.log('CronoHub: Content script loaded');
     if (state.isOpen) {
       loadConfig().then(function(config) {
         state.config = config;
-        renderPanel();
-        panel.classList.remove('hidden');
+
+        // For reports mode, skip repository validation
+        if (state.panelMode === 'reports') {
+          renderPanel();
+          panel.classList.remove('hidden');
+          return;
+        }
+
+        // For log mode, validate repository access
+        if (state.issueData) {
+          // Show loading state
+          panel.innerHTML = getLoadingContent();
+          panel.classList.remove('hidden');
+
+          // Validate repository access
+          validateRepositoryAccess(state.issueData.owner, state.issueData.repo, config.githubToken)
+            .then(function(result) {
+              state.hasRepositoryAccess = result.hasAccess;
+              state.permissionError = result.error;
+              renderPanel();
+            })
+            .catch(function(error) {
+              console.error('CronoHub: Error validating permissions', error);
+              state.hasRepositoryAccess = false;
+              state.permissionError = 'Unexpected error during permission validation';
+              renderPanel();
+            });
+        } else {
+          renderPanel();
+          panel.classList.remove('hidden');
+        }
       }).catch(function(error) {
         console.error('CronoHub: Error loading config', error);
         state.isOpen = false;
@@ -193,6 +292,9 @@ console.log('CronoHub: Content script loaded');
       });
     } else {
       panel.classList.add('hidden');
+      // Reset permission state when closing
+      state.hasRepositoryAccess = null;
+      state.permissionError = null;
     }
   }
 
@@ -223,6 +325,13 @@ console.log('CronoHub: Content script loaded');
     // Log mode requires issue detection
     if (!state.issueData) {
       panel.innerHTML = getNoIssueContent();
+      document.getElementById('gtt-close').onclick = togglePanel;
+      return;
+    }
+
+    // Check for permission validation result (only for log mode)
+    if (state.hasRepositoryAccess === false) {
+      panel.innerHTML = getNoAccessContent(state.permissionError);
       document.getElementById('gtt-close').onclick = togglePanel;
       return;
     }
@@ -1307,6 +1416,60 @@ console.log('CronoHub: Content script loaded');
 
     html += '</div>';
     container.innerHTML = html;
+  }
+
+  function getLoadingContent() {
+    return [
+      '<div class="gtt-header">',
+      '<div class="gtt-header-title">',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>',
+      '<h3>CronoHub</h3>',
+      '</div>',
+      '<button class="gtt-close-btn" id="gtt-close" type="button">',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+      '</button>',
+      '</div>',
+      '<div class="gtt-loading-state">',
+      '<div class="gtt-spinner"></div>',
+      '<p class="gtt-loading-text">Validating repository access...</p>',
+      '</div>'
+    ].join('');
+  }
+
+  function getNoAccessContent(errorMessage) {
+    var displayError = errorMessage || 'Your token doesn\'t have write access to this repository.';
+
+    return [
+      '<div class="gtt-header">',
+      '<div class="gtt-header-title">',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>',
+      '<h3>CronoHub</h3>',
+      '</div>',
+      '<button class="gtt-close-btn" id="gtt-close" type="button">',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+      '</button>',
+      '</div>',
+      '<div class="gtt-error-state">',
+      '<div class="gtt-error-icon gtt-access-denied">',
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">',
+      '<circle cx="12" cy="12" r="10"/>',
+      '<line x1="15" y1="9" x2="9" y2="15"/>',
+      '<line x1="9" y1="9" x2="15" y2="15"/>',
+      '</svg>',
+      '</div>',
+      '<h4 class="gtt-error-title">Access Denied</h4>',
+      '<p class="gtt-error-text">' + escapeHtml(displayError) + '</p>',
+      '<div class="gtt-error-details">',
+      '<p class="gtt-error-subtitle">Possible solutions:</p>',
+      '<ul class="gtt-instructions">',
+      '<li>Verify your token has <strong>write access</strong> to <strong>' + escapeHtml(state.issueData.owner + '/' + state.issueData.repo) + '</strong></li>',
+      '<li>Check if the repository exists and you have proper permissions</li>',
+      '<li>Generate a new token with <code>repo</code> scope at <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">GitHub Settings</a></li>',
+      '<li>Contact the repository owner to request access</li>',
+      '</ul>',
+      '</div>',
+      '</div>'
+    ].join('');
   }
 
   function getErrorContent() {
