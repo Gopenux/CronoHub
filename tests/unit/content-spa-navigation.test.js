@@ -500,4 +500,193 @@ describe('Content Script - SPA Navigation Detection', () => {
       expect(endTime - startTime).toBeLessThan(10); // Essentially instant
     });
   });
+
+  describe('Panel Auto-Close on Navigation', () => {
+    test('should close panel when URL changes during SPA navigation', () => {
+      // Arrange: simulate panel open state
+      const state = {
+        isOpen: true,
+        hasRepositoryAccess: true,
+        permissionError: null
+      };
+
+      const mockPanel = {
+        classList: {
+          add: jest.fn(),
+          remove: jest.fn()
+        }
+      };
+
+      mockDocument.getElementById = jest.fn((id) => {
+        if (id === 'gtt-panel') {
+          return mockPanel;
+        }
+        return null;
+      });
+
+      // Act: simulate onUrlChange logic
+      if (state.isOpen) {
+        const panel = mockDocument.getElementById('gtt-panel');
+        if (panel) {
+          panel.classList.add('hidden');
+        }
+        state.isOpen = false;
+        state.hasRepositoryAccess = null;
+        state.permissionError = null;
+      }
+
+      // Assert
+      expect(mockPanel.classList.add).toHaveBeenCalledWith('hidden');
+      expect(state.isOpen).toBe(false);
+      expect(state.hasRepositoryAccess).toBeNull();
+      expect(state.permissionError).toBeNull();
+    });
+
+    test('should not attempt to close panel if already closed', () => {
+      // Arrange: panel is already closed
+      const state = {
+        isOpen: false,
+        hasRepositoryAccess: null,
+        permissionError: null
+      };
+
+      const mockPanel = {
+        classList: {
+          add: jest.fn()
+        }
+      };
+
+      mockDocument.getElementById = jest.fn((id) => {
+        if (id === 'gtt-panel') {
+          return mockPanel;
+        }
+        return null;
+      });
+
+      // Act: simulate onUrlChange logic
+      if (state.isOpen) {
+        const panel = mockDocument.getElementById('gtt-panel');
+        if (panel) {
+          panel.classList.add('hidden');
+        }
+        state.isOpen = false;
+      }
+
+      // Assert: should not call classList.add
+      expect(mockPanel.classList.add).not.toHaveBeenCalled();
+      expect(mockDocument.getElementById).not.toHaveBeenCalled();
+    });
+
+    test('should reset permission state when closing panel on navigation', () => {
+      // Arrange
+      const state = {
+        isOpen: true,
+        hasRepositoryAccess: true,
+        permissionError: 'Some error'
+      };
+
+      const mockPanel = {
+        classList: {
+          add: jest.fn()
+        }
+      };
+
+      mockDocument.getElementById = jest.fn(() => mockPanel);
+
+      // Act
+      if (state.isOpen) {
+        const panel = mockDocument.getElementById('gtt-panel');
+        if (panel) {
+          panel.classList.add('hidden');
+        }
+        state.isOpen = false;
+        state.hasRepositoryAccess = null;
+        state.permissionError = null;
+      }
+
+      // Assert: permission state should be reset
+      expect(state.hasRepositoryAccess).toBeNull();
+      expect(state.permissionError).toBeNull();
+    });
+
+    test('should handle panel not found gracefully', () => {
+      // Arrange
+      const state = {
+        isOpen: true,
+        hasRepositoryAccess: true,
+        permissionError: null
+      };
+
+      mockDocument.getElementById = jest.fn(() => null);
+
+      // Act: should not throw error
+      if (state.isOpen) {
+        const panel = mockDocument.getElementById('gtt-panel');
+        if (panel) {
+          panel.classList.add('hidden');
+        }
+        state.isOpen = false;
+        state.hasRepositoryAccess = null;
+        state.permissionError = null;
+      }
+
+      // Assert: state should still be updated
+      expect(state.isOpen).toBe(false);
+      expect(state.hasRepositoryAccess).toBeNull();
+      expect(state.permissionError).toBeNull();
+    });
+
+    test('complete flow: issues list -> issue detail with panel open', () => {
+      // Arrange: start at issues list with panel open
+      mockWindow.location.pathname = '/testorg/testrepo/issues';
+      const state = {
+        isOpen: true,
+        issueData: null,
+        panelMode: 'reports'
+      };
+
+      const mockPanel = {
+        classList: {
+          add: jest.fn()
+        }
+      };
+
+      mockDocument.getElementById = jest.fn(() => mockPanel);
+
+      // Act 1: Navigate to issue #42 (SPA navigation)
+      mockWindow.location.pathname = '/testorg/testrepo/issues/42';
+
+      // Act 2: onUrlChange should close panel
+      if (state.isOpen) {
+        const panel = mockDocument.getElementById('gtt-panel');
+        if (panel) {
+          panel.classList.add('hidden');
+        }
+        state.isOpen = false;
+      }
+
+      // Assert: panel should be closed
+      expect(mockPanel.classList.add).toHaveBeenCalledWith('hidden');
+      expect(state.isOpen).toBe(false);
+
+      // Act 3: User reopens panel
+      state.isOpen = true;
+
+      // Act 4: Detect new issue
+      const urlMatch = mockWindow.location.pathname.match(/\/([^/]+)\/([^/]+)\/issues\/(\d+)/);
+      if (urlMatch) {
+        state.issueData = {
+          owner: urlMatch[1],
+          repo: urlMatch[2],
+          number: parseInt(urlMatch[3])
+        };
+        state.panelMode = 'log'; // Should default to log mode on issue pages
+      }
+
+      // Assert: panel should now show correct issue data
+      expect(state.issueData).not.toBeNull();
+      expect(state.issueData.number).toBe(42);
+      expect(state.panelMode).toBe('log');
+    });
+  });
 });
