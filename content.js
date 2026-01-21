@@ -117,6 +117,18 @@ console.log('CronoHub: Content script loaded');
       }
 
       debounceTimer = setTimeout(function() {
+        // Close panel if it's open to force refresh on next open
+        if (state.isOpen) {
+          var panel = document.getElementById('gtt-panel');
+          if (panel) {
+            panel.classList.add('hidden');
+          }
+          state.isOpen = false;
+          // Reset permission state
+          state.hasRepositoryAccess = null;
+          state.permissionError = null;
+        }
+
         waitForIssueDOM(0);
       }, 50);
     }
@@ -172,8 +184,47 @@ console.log('CronoHub: Content script loaded');
       showButton();
     } else {
       state.issueData = null;
-      hideButton();
+
+      // Check if we're on a repository page (even without an issue)
+      var repoPage = detectRepositoryPage();
+      if (repoPage) {
+        console.log('CronoHub: Repository page detected', repoPage);
+        showButton();
+      } else {
+        hideButton();
+      }
     }
+  }
+
+  /**
+   * Detects if the current page is a repository page (without a specific issue)
+   * @returns {Object|null} - Object with owner and repo, or null if not a repo page
+   */
+  function detectRepositoryPage() {
+    // Match repository pages like: /owner/repo, /owner/repo/issues, /owner/repo/pulls, etc.
+    // but NOT issue pages with numbers like /owner/repo/issues/123
+    var pathname = window.location.pathname;
+
+    // Exclude issue pages with numbers
+    if (/\/issues\/\d+/.test(pathname)) {
+      return null;
+    }
+
+    // Exclude projects pages (already handled by issue detection)
+    if (/\/projects\/\d+/.test(pathname)) {
+      return null;
+    }
+
+    // Match repository pages: /owner/repo or /owner/repo/anything
+    var repoMatch = pathname.match(/^\/([^/]+)\/([^/]+)(?:\/|$)/);
+    if (repoMatch && repoMatch[1] !== 'orgs' && repoMatch[1] !== 'settings' && repoMatch[1] !== 'marketplace') {
+      return {
+        owner: repoMatch[1],
+        repo: repoMatch[2]
+      };
+    }
+
+    return null;
   }
 
   function getIssueData() {
@@ -355,6 +406,11 @@ console.log('CronoHub: Content script loaded');
     if (state.isOpen) {
       loadConfig().then(function(config) {
         state.config = config;
+
+        // If no issue is detected, force reports mode
+        if (!state.issueData) {
+          state.panelMode = 'reports';
+        }
 
         // For reports mode, skip repository validation
         if (state.panelMode === 'reports') {
@@ -699,7 +755,8 @@ console.log('CronoHub: Content script loaded');
   function renderReportsPanelDirect(panel) {
     var defaultRange = window.CronoHubReports.getDefaultDateRange();
 
-    panel.innerHTML = [
+    // Build the HTML, conditionally including the "Back to Log Time" button
+    var htmlParts = [
       '<div class="gtt-header">',
       '<div class="gtt-header-title">',
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>',
@@ -740,15 +797,26 @@ console.log('CronoHub: Content script loaded');
       '<button type="button" class="gtt-submit-btn" id="gtt-generate-report" data-cronohub-generate-report>',
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>',
       'Generate Report',
-      '</button>',
-      '<button type="button" class="gtt-secondary-btn" id="gtt-back-to-log">',
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>',
-      'Back to Log Time',
-      '</button>',
+      '</button>'
+    ];
+
+    // Only show "Back to Log Time" button if an issue is detected
+    if (state.issueData) {
+      htmlParts.push(
+        '<button type="button" class="gtt-secondary-btn" id="gtt-back-to-log">',
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>',
+        'Back to Log Time',
+        '</button>'
+      );
+    }
+
+    htmlParts.push(
       '<div id="gtt-report-results" class="gtt-report-results" data-cronohub-report-results></div>',
       '<div id="gtt-report-error" class="gtt-report-error" data-cronohub-error></div>',
       '</div>'
-    ].join('');
+    );
+
+    panel.innerHTML = htmlParts.join('');
 
     document.getElementById('gtt-close').onclick = togglePanel;
 
@@ -760,11 +828,14 @@ console.log('CronoHub: Content script loaded');
       handleGenerateReport();
     };
 
-    // Setup back button
-    document.getElementById('gtt-back-to-log').onclick = function() {
-      state.panelMode = 'log';
-      renderPanel();
-    };
+    // Setup back button only if it exists
+    var backButton = document.getElementById('gtt-back-to-log');
+    if (backButton) {
+      backButton.onclick = function() {
+        state.panelMode = 'log';
+        renderPanel();
+      };
+    }
   }
 
   function renderReportsPanelInIframe(panel) {
@@ -803,7 +874,7 @@ console.log('CronoHub: Content script loaded');
         });
       }
 
-      // Back to Log Time button
+      // Back to Log Time button (only if it exists)
       var backBtn = iframeDocument.getElementById('gtt-back-to-log-btn');
       if (backBtn) {
         backBtn.addEventListener('click', function() {
@@ -820,7 +891,7 @@ console.log('CronoHub: Content script loaded');
   function getReportsIframeContent() {
     var defaultRange = window.CronoHubReports.getDefaultDateRange();
 
-    return '<!DOCTYPE html><html><head><style>' +
+    var html = '<!DOCTYPE html><html><head><style>' +
       ':root{--gtt-bg-primary:#0d1117;--gtt-bg-secondary:#161b22;--gtt-bg-tertiary:#21262d;--gtt-border:#30363d;--gtt-text-primary:#f0f6fc;--gtt-text-secondary:#8b949e;--gtt-text-muted:#6e7681;--gtt-accent-green:#238636;--gtt-accent-blue:#58a6ff;--gtt-accent-orange:#d29922;}' +
       'body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;background:var(--gtt-bg-secondary);color:var(--gtt-text-primary);font-size:14px;overflow-y:auto;}' +
       '.gtt-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;background:var(--gtt-bg-primary);border-bottom:1px solid var(--gtt-border);}' +
@@ -890,15 +961,22 @@ console.log('CronoHub: Content script loaded');
       '<button class="gtt-submit-btn" id="gtt-generate-report-btn">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>' +
       'Generate Report' +
-      '</button>' +
-      '<button class="gtt-secondary-btn" id="gtt-back-to-log-btn">' +
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>' +
-      'Back to Log Time' +
-      '</button>' +
-      '<div id="report-results" class="gtt-report-results"></div>' +
+      '</button>';
+
+    // Only add "Back to Log Time" button if an issue is detected
+    if (state.issueData) {
+      html += '<button class="gtt-secondary-btn" id="gtt-back-to-log-btn">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>' +
+        'Back to Log Time' +
+        '</button>';
+    }
+
+    html += '<div id="report-results" class="gtt-report-results"></div>' +
       '<div id="report-error" class="gtt-report-error"></div>' +
       '</div>' +
       '</body></html>';
+
+    return html;
   }
 
   function loadOrganizationData() {
