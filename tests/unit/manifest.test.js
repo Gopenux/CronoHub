@@ -41,7 +41,8 @@ describe('Manifest V3 Validation', () => {
 
   test('should have necessary permissions', () => {
     expect(manifest.permissions).toContain('storage');
-    expect(manifest.permissions).toContain('activeTab');
+    // activeTab is not needed - content scripts are injected declaratively
+    expect(manifest.permissions).not.toContain('activeTab');
   });
 
   test('should have host_permissions for GitHub', () => {
