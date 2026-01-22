@@ -12,7 +12,7 @@
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://www.google.com/chrome/)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green?style=for-the-badge&logo=google&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/)
-[![Tests](https://img.shields.io/badge/Tests-177%20Passing-success?style=for-the-badge&logo=jest&logoColor=white)](https://github.com/Gopenux/CronoHub/actions)
+[![Tests](https://img.shields.io/badge/Tests-336%20Passing-success?style=for-the-badge&logo=jest&logoColor=white)](https://github.com/Gopenux/CronoHub/actions)
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-❤️-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Gopenux)
 [![Made in Colombia](https://img.shields.io/badge/Made_in-Colombia-FFCD00?style=for-the-badge&logo=colombia&logoColor=003893)](https://gopenux.com)
@@ -85,7 +85,7 @@ We built **CronoHub** – a Chrome extension that integrates seamlessly into Git
 <td width="50%" valign="top">
 
 ### 🛠️ Enterprise Quality
-- 177 automated tests (100% coverage)
+- 336 automated tests (100% coverage)
 - Manifest V3 compliant
 - XSS protection
 - Daily compatibility testing
@@ -409,7 +409,7 @@ This is not marketing speak – it's architecturally guaranteed:
 <td width="50%">
 
 **Comprehensive Testing**
-- ✅ 177 automated tests
+- ✅ 336 automated tests
 - ✅ 100% functional coverage
 - ✅ Daily Chrome compatibility tests
 - ✅ Mocked API testing (no token needed)
@@ -635,8 +635,8 @@ npm install
 npm test
 
 # Run specific test suites
-npm run test:unit          # Unit tests only (141 tests)
-npm run test:e2e           # End-to-end tests (36 tests)
+npm run test:unit          # Unit tests only (287 tests)
+npm run test:e2e           # End-to-end tests (49 tests)
 npm run test:coverage      # Generate coverage report
 npm run test:watch         # Watch mode for development
 
@@ -664,8 +664,8 @@ CronoHub/
 ├── docs/
 │   └── screenshots/           # README images
 ├── tests/
-│   ├── unit/                  # Unit tests (141 tests)
-│   ├── e2e/                   # E2E tests (36 tests)
+│   ├── unit/                  # Unit tests (287 tests)
+│   ├── e2e/                   # E2E tests (49 tests)
 │   └── mocks/                 # Reusable API mocks
 └── .github/workflows/         # CI/CD with GitHub Actions
 ```
