@@ -8,7 +8,7 @@
 
 **Track time effortlessly. Generate reports instantly. Your data stays yours.**
 
-[![Version](https://img.shields.io/badge/Version-1.3.0-brightgreen?style=for-the-badge&logo=git&logoColor=white)](https://github.com/Gopenux/CronoHub/releases)
+[![Version](https://img.shields.io/badge/Version-1.3.1-brightgreen?style=for-the-badge&logo=git&logoColor=white)](https://github.com/Gopenux/CronoHub/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://www.google.com/chrome/)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green?style=for-the-badge&logo=google&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/)
